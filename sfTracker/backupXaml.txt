@@ -1,0 +1,19 @@
+<Grid PreviewMouseWheel="Grid_PreviewMouseWheel" PreviewMouseMove="Grid_PreviewMouseMove">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+        <ScrollViewer
+            Grid.Row="0"
+            VerticalScrollBarVisibility="Auto"
+            HorizontalScrollBarVisibility="Auto">
+                <local:TrackerGrid
+                    x:Name="Tracker"
+                    Margin="40,174,30,40"
+                    
+                    MinWidth="500"
+                    MinHeight="300"
+          
+                />
+            </ScrollViewer>
+            <<Button Content="Button" HorizontalAlignment="Left" Margin="840,84,0,0" VerticalAlignment="Top" Click="Button_Click" Focusable="False"/>
+        </Grid>

@@ -1,0 +1,160 @@
+﻿<Window x:Class="sfTracker.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:sfTracker"
+    Title="Tracker"
+    WindowState="Maximized"
+    Background="#1e1e1e">
+
+    <!-- https://github.com/angelsix/fasetto-word/blob/develop/Source/Fasetto.Word/Styles/Scroll.xaml -->
+    <Window.Resources>
+        <Style x:Key="ScrollBarThumb" TargetType="{x:Type Thumb}">
+            <Setter Property="OverridesDefaultStyle" Value="true"/>
+            <Setter Property="IsTabStop" Value="false"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Border x:Name="rectangle"
+                                SnapsToDevicePixels="True"
+                                Background="FloralWhite"
+                                CornerRadius="1"
+                                Height="NaN"
+                                Width="NaN" Margin="-2,0,-2,-53"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type ScrollBar}">
+            <Setter Property="Stylus.IsPressAndHoldEnabled" Value="false"/>
+            <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
+            <Setter Property="Width" Value="14"/>
+            <Setter Property="Margin" Value="-14 0 0 0" />
+            <Setter Property="MinWidth" Value="{Binding Width, RelativeSource={RelativeSource Self}}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid x:Name="Bg" SnapsToDevicePixels="true" Background="Transparent">
+
+                            <Border Padding="0 4">
+                                <Track x:Name="PART_Track"
+                               IsDirectionReversed="true"
+                               IsEnabled="{TemplateBinding IsMouseOver}"
+                               Width="10"
+                               HorizontalAlignment="Center">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Opacity="0" Command="{x:Static ScrollBar.PageUpCommand}" />
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Opacity="0" Command="{x:Static ScrollBar.PageDownCommand}" />
+                                    </Track.IncreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource ScrollBarThumb}" />
+                                    </Track.Thumb>
+                                </Track>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto"/>
+                    <Setter Property="MinWidth" Value="0"/>
+                    <Setter Property="Height" Value="14"/>
+                    <Setter Property="MinHeight" Value="{Binding Height, RelativeSource={RelativeSource Self}}"/>
+                    <Setter Property="Margin" Value="0 -14 0 0" />
+
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                <Grid x:Name="Bg" SnapsToDevicePixels="true">
+                                    <Track x:Name="PART_Track"
+                                    IsEnabled="{TemplateBinding IsMouseOver}"
+                                    Height="6"
+                                       >
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Opacity="0" Command="{x:Static ScrollBar.PageLeftCommand}"/>
+                                        </Track.DecreaseRepeatButton>
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Opacity="0" Command="{x:Static ScrollBar.PageRightCommand}"/>
+                                        </Track.IncreaseRepeatButton>
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource ScrollBarThumb}" />
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <!--<Button Content="Button" HorizontalAlignment="Left" Margin="840,84,0,0" VerticalAlignment="Top" Click="Button_Click" Focusable="False"/>-->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" /> <!-- section for controls + instruments -->
+            <RowDefinition Height="250" /> <!-- section for above tracker -->
+            <RowDefinition Height="*" /> <!-- section for tracker + scrollbar -->
+            <RowDefinition Height="100" /> <!-- empty space to prevent going below window -->
+        </Grid.RowDefinitions>
+
+        <!-- Container for horizontally aligned elements in the bottom half -->
+        <Grid Background="Transparent"  PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="30" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Background="Transparent" Grid.Column="0" HorizontalAlignment="Stretch"></TextBlock>
+
+            <!-- MARGIN: LEFT, TOP, RIGHT, BOTTOM -->
+            <Border Grid.Column="2" BorderThickness="1" BorderBrush="White" Margin="0 5 5 10">
+                <TextBlock Background="Transparent" Grid.Column="2" HorizontalAlignment="Stretch">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="5" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Margin="5 5 0 5" Padding="5" Click="Button_OpenSF2" Grid.Column="0">Import .sf2 File</Button>
+                        <TextBlock x:Name="SelectedSoundFont" Text="" VerticalAlignment="Center" Grid.Column="2" />
+                    </Grid>
+                </TextBlock>
+            </Border>
+        </Grid>
+
+        <Border BorderThickness="1" Height="5" BorderBrush="White" Grid.Row="1"/>
+
+        <!-- Container for horizontally aligned elements in the bottom half -->
+        <Grid Background="Transparent"  PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" /> <!-- tracker part -->
+                <ColumnDefinition Width="Auto" /> <!-- scroll bar part -->
+            </Grid.ColumnDefinitions>
+
+            <!-- TrackerGrid aligned left -->
+            <local:TrackerGrid x:Name="Tracker"
+                               Grid.Column="0"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Stretch"
+                               Margin="50 0 0 10"
+                               />
+
+            <!-- ScrollBar aligned right -->
+            <ScrollBar x:Name="TrackerScrollBar"
+                       Grid.Column="1"
+                       Orientation="Vertical"
+                       Width="10"
+                       Margin="0 0 10 0"
+                       VerticalAlignment="Stretch"
+                       Minimum="0"
+                       Maximum="63"
+                       SmallChange="1"
+                       LargeChange="1"
+                       ValueChanged="TrackerScrollBar_ValueChanged"/>
+        </Grid>
+    </Grid>
+</Window>
