@@ -13,29 +13,37 @@ namespace sfTracker;
 public class TrackerGrid : FrameworkElement
 {
     public int currentRow = 0;
-    private int currentChannel = 0;
+    public int currentChannel = 0;
     public int currentPatternIndex = 0; // index in Patterns[]
     public int _firstVisibleRow = 0;
     public int TotalRowCount = 0;
-    public double ScrollbarValue = 0;
-
+    public double VerticalScrollbarValue = 0;
+    public double HorizontalScrollbarValue = 0;
 
     public double RowHeight = 15;
     private const double ColumnWidth = 120;
-    private int LeadInRows = 8; // number of rows before the viewport starts scrolling
+    private readonly int LeadInRows = 8; // number of rows before the viewport starts scrolling
 
     private static SolidColorBrush FourthRowHighlight;
+    private static SolidColorBrush InactiveFourthRowHighlight;
     private static SolidColorBrush CurrentCellHighlight;
     private static SolidColorBrush CurrentRowHighlight;
     private static SolidColorBrush ActivePatternBrush;
     private static SolidColorBrush InactivePatternBrush;
+    private static SolidColorBrush LowOpacityTextBrush;
+
+    private static SolidColorBrush InactiveTextBrush;
+    private static SolidColorBrush LowOpacityInactiveTextBrush;
 
     public SynthEngine Engine { get; set; }
 
     public TrackerGrid()
     {
-        FourthRowHighlight = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255));
+        FourthRowHighlight = new SolidColorBrush(Color.FromArgb(15, 255, 255, 255));
         FourthRowHighlight.Freeze();
+
+        InactiveFourthRowHighlight = new SolidColorBrush(Color.FromArgb(5, 255, 255, 255));
+        InactiveFourthRowHighlight.Freeze();
 
         CurrentCellHighlight = new SolidColorBrush(Color.FromArgb(80, 0, 120, 215));
         CurrentCellHighlight.Freeze();
@@ -48,6 +56,15 @@ public class TrackerGrid : FrameworkElement
 
         InactivePatternBrush = new SolidColorBrush(Color.FromArgb(80, 200, 200, 200)); // greyed
         InactivePatternBrush.Freeze();
+
+        LowOpacityTextBrush = new SolidColorBrush(Color.FromArgb(100, 255, 255, 255)); // greyed
+        LowOpacityTextBrush.Freeze();
+
+        InactiveTextBrush = new SolidColorBrush(Color.FromArgb(150, 255, 255, 255));
+        InactiveTextBrush.Freeze();
+
+        LowOpacityInactiveTextBrush = new SolidColorBrush(Color.FromArgb(50, 255, 255, 255)); // greyed
+        LowOpacityInactiveTextBrush.Freeze();
 
         Focusable = true; // set focusable so key presses can be used to navigate/place notes
     }
@@ -91,8 +108,6 @@ public class TrackerGrid : FrameworkElement
         InvalidateVisual();
     }
 
-    private double scrollOffset = 0; // vertical offset in pixels
-
     // Total number of rows
     public int TotalRows { get; set; } = 64;
 
@@ -117,11 +132,7 @@ public class TrackerGrid : FrameworkElement
 
         if (Patterns == null || Patterns.Count == 0) return;
 
-        double globalRowOffset = 0;
-
-        double globalCurrentRow = currentRow;
-        for (int i = 0; i < currentPatternIndex; i++)
-            globalCurrentRow += Patterns[i].RowCount;
+        int globalRowOffset = 0;
 
         int currentGlobalRow = GetCurrentGlobalRow();
 
@@ -137,17 +148,21 @@ public class TrackerGrid : FrameworkElement
 
             for (int row = 0; row < rowCount; row++)
             {
-                int absoluteRow = (int)(globalRowOffset + row);
+                int absoluteRow = globalRowOffset + row;
 
-                double y = (absoluteRow - _firstVisibleRow - scrollOffset) * RowHeight;
+                double y = (absoluteRow - _firstVisibleRow) * RowHeight;
 
                 // draw row number on the left
                 if (y + (LeadInRows * RowHeight) >= 0)
-                {
-                    var rowStr = absoluteRow.ToString();
-                    rowStr = rowStr.PadLeft(3, '0');
-                    context.DrawText(RenderText(rowStr, brush), new Point(-30, y));
-                }
+                    context.DrawText(
+                        RenderText(
+                            GetRowString(absoluteRow),
+                            (i == currentPatternIndex) ?
+                                (row % 4 == 0 ? ActivePatternBrush : LowOpacityTextBrush) :
+                                (row % 4 == 0 ? InactiveTextBrush : LowOpacityInactiveTextBrush)
+                        ),
+                        new Point(-31.5, y)
+                    );
 
                 for (int channel = 0; channel < channelCount; channel++)
                 {
@@ -159,11 +174,16 @@ public class TrackerGrid : FrameworkElement
                     if (y + (LeadInRows * RowHeight) < 0)
                         continue; // skip drawing rows outside the visible area
 
-                    context.DrawText(RenderText(GetNoteText(cell.Note), brush), new Point(x + 2, y)); // draw --- or note value in cell
+                    context.DrawText(RenderText(GetNoteText(cell.Note), brush), new Point(x + 5, y)); // draw --- or note value in cell
 
                     // highlight every fourth row like other trackers
                     if (row < rowCount && row % 4 == 0)
-                        context.DrawRectangle(FourthRowHighlight, null, new Rect(0, y, channelCount * ColumnWidth, RowHeight));
+                    {
+                        if (i == currentPatternIndex)
+                            context.DrawRectangle(FourthRowHighlight, null, new Rect(0, y, channelCount * ColumnWidth, RowHeight));
+                        else
+                            context.DrawRectangle(InactiveFourthRowHighlight, null, new Rect(0, y, channelCount * ColumnWidth, RowHeight));
+                    }
 
                     // highlight current cell (TODO: might make this highlight the whole row)
                     //if ((globalRowOffset + row) == currentRow && channel == currentChannel)
@@ -199,17 +219,22 @@ public class TrackerGrid : FrameworkElement
         }
     }
 
-    public FormattedText RenderText(string noteText, SolidColorBrush brush)
+    public FormattedText RenderText(string noteText, SolidColorBrush brush, FontWeight weight = default)
     {
-        return new FormattedText(
-            noteText,                                   // text to be rendered
-            CultureInfo.InvariantCulture,               // InvariantCulture ensures consistent text regardless of system culture 
-            FlowDirection.LeftToRight,                  // write from left to right
-            new Typeface("Consolas"),                   // Consolas is a nice monospace font
-            14,                                         // font size
-            brush,                                      // text colour
-            VisualTreeHelper.GetDpi(this).PixelsPerDip  // prevent blurry text on high DPI monitors
-        );
+        FormattedText text = 
+            new FormattedText(
+                noteText,                                   // text to be rendered
+                CultureInfo.InvariantCulture,               // InvariantCulture ensures consistent text regardless of system culture 
+                FlowDirection.LeftToRight,                  // write from left to right
+                new Typeface("Consolas"),                   // Consolas is a nice monospace font
+                14,                                         // font size
+                brush,                                      // text colour
+                VisualTreeHelper.GetDpi(this).PixelsPerDip  // prevent blurry text on high DPI monitors
+            );
+
+        text.SetFontWeight(weight);
+
+        return text;
     }
 
     public string GetNoteText(int note)
@@ -229,19 +254,19 @@ public class TrackerGrid : FrameworkElement
         switch (e.Key)
         {
             case Key.Up:
-                MoveUp();
+                AdvanceRow(CurrentRow, CurrentRow - 1);
                 break;
 
             case Key.Down:
-                MoveDown();
+                AdvanceRow(CurrentRow, CurrentRow + 1);
                 break;
 
             case Key.Left:
-                currentChannel = Math.Max(0, currentChannel - 1);
+                MoveLeft();
                 break;
 
             case Key.Right:
-                currentChannel = Math.Min(maxChannel, currentChannel + 1);
+                MoveRight();
                 break;
 
             case Key.Z:
@@ -293,7 +318,7 @@ public class TrackerGrid : FrameworkElement
                 StartPlayback();
                 if (!IsPlaying)
                 {
-                    SetScrollbarValue(0);
+                    SetVerticalScrollbarValue(0);
                     currentRow = 0;
                     _firstVisibleRow = 0;
                 }
@@ -302,6 +327,7 @@ public class TrackerGrid : FrameworkElement
 
         Focus();
         InvalidateVisual();
+        e.Handled = true;
     }
 
     public event Action PlaybackStarted;
@@ -312,12 +338,46 @@ public class TrackerGrid : FrameworkElement
         IsPlaying = !IsPlaying;
     }
 
-    public event Action<double> ScrollbarValueChanged;
+    public event Action<double> VerticalScrollbarValueChanged;
 
-    public void SetScrollbarValue(double value)
+    public void SetVerticalScrollbarValue(double value)
     {
-        ScrollbarValueChanged?.Invoke(value);
-        ScrollbarValue = value;
+        VerticalScrollbarValueChanged?.Invoke(value);
+        VerticalScrollbarValue = value;
+    }
+
+    public event Action<double> HorizontalScrollbarValueChanged;
+
+    public void SetHorizontalScrollbarValue(double value)
+    {
+        HorizontalScrollbarValueChanged?.Invoke(value);
+        HorizontalScrollbarValue = value;
+    }
+
+    public event Action<int, int> AdvancedRow;
+
+    public void AdvanceRow(int cur, int next)
+    {
+        AdvancedRow?.Invoke(cur, next);
+    }
+
+    private string GetRowString(int absoluteRow)
+    {
+        int rowText = absoluteRow;
+        if (currentPatternIndex > 0)
+        {
+            if (rowText >= Patterns[currentPatternIndex - 1].RowCount)
+                rowText -= Patterns[currentPatternIndex - 1].RowCount;
+        }
+        else
+        {
+            if (rowText >= Patterns[0].RowCount)
+                rowText -= Patterns[0].RowCount;
+        }
+
+        var rowStr = rowText.ToString();
+
+        return rowStr.PadLeft(3, '0');
     }
 
     private void SetNote(int pattern, int row, int channel, int note, int instrument)
@@ -357,7 +417,8 @@ public class TrackerGrid : FrameworkElement
         if (currentRow > 0)
         {
             currentRow--;
-            ScrollbarValue -= 1;
+            VerticalScrollbarValue -= 1;
+            SetVerticalScrollbarValue(VerticalScrollbarValue);
         }
         else if (currentPatternIndex > 0)
         {
@@ -372,13 +433,83 @@ public class TrackerGrid : FrameworkElement
         if (currentRow < Patterns[currentPatternIndex].RowCount - 1)
         {
             currentRow++;
-            ScrollbarValue += 1;
         }
-        else if (currentPatternIndex < Patterns.Count - 1)
+        else
         {
-            // move to first row of next pattern
-            currentPatternIndex++;
             currentRow = 0;
+            if (currentPatternIndex < Patterns.Count - 1)
+            {
+                currentPatternIndex++;
+            }
+            else
+            {
+                currentPatternIndex = 0;
+                _firstVisibleRow = 0;
+                SetVerticalScrollbarValue(0);
+                return;
+            }
+        }
+
+        SetVerticalScrollbarValue(VerticalScrollbarValue + 1);
+
+        //currentRow++;
+        //VerticalScrollbarValue += 1;
+        //SetVerticalScrollbarValue(VerticalScrollbarValue);
+
+        //if (currentRow == Patterns[currentPatternIndex].RowCount)
+        //{
+        //    currentPatternIndex++;
+
+        //    if (currentPatternIndex == Patterns.Count)
+        //    {
+        //        currentRow = 0;
+        //        currentPatternIndex = 0;
+        //        _firstVisibleRow = 0;
+        //    }
+        //}
+
+
+
+        //Console.WriteLine($"Current Row: {currentRow}, Current Pattern: {currentPatternIndex}, Row Count: {Patterns[currentPatternIndex].RowCount}");
+        //if (currentRow < Patterns[currentPatternIndex].RowCount - 1)
+        //{
+        //    currentRow++;
+        //}
+        //else
+        //{
+        //    currentRow = 0;
+        //    if (currentPatternIndex < Patterns.Count - 1)
+        //    {
+        //        currentPatternIndex++;
+
+        //    }
+        //    else
+        //    {
+        //        currentPatternIndex = 0;
+        //    }
+        //}
+
+
+    }
+
+    public void MoveLeft()
+    {
+        if (currentChannel > 0)
+        {
+            currentChannel--;
+            HorizontalScrollbarValue -= 1;
+            SetHorizontalScrollbarValue(HorizontalScrollbarValue);
+        }
+    }
+
+    public void MoveRight()
+    {
+        Console.WriteLine(currentChannel + " " + Patterns[0].Rows[0].Cells.Length);
+        if (currentChannel < Patterns[0].Rows[0].Cells.Length - 1)
+        {
+            currentChannel++;
+            HorizontalScrollbarValue += 1;
+            SetHorizontalScrollbarValue(HorizontalScrollbarValue);
         }
     }
 }

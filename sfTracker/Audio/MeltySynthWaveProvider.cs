@@ -33,7 +33,7 @@ namespace sfTracker.Audio
             // this only resizes the buffer if the number of samples requested
             // is more than the current size
             if (floatBuffer.Length < samplesRequired)
-                floatBuffer = new float[100000];
+                floatBuffer = new float[samplesRequired];
 
             int framesDone = 0; // track how many frames have been generated
             // keep rendering audio until all the frames are done

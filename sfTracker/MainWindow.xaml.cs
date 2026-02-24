@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -21,27 +22,31 @@ namespace sfTracker
     {
         private SynthEngine engine;
         private readonly Stopwatch playbackClock = new();
+        private readonly int defaultBPM = 140;
         public double currentRowPosition;
         public bool IsPlaying = false;
         private int totalRowCount = 0;
         private int currentRow = 0;
+        private int currentColumn = 0;
         private bool preventScrollbarEvent;
-        private int defaultBPM = 140;
 
         public MainWindow()
         {
             InitializeComponent();
             InitialiseTracker(
                 soundFont: "Kirby's_Dream_Land_3.sf2",
-                patterns: [new Pattern(rowCount: 32, channels: 4)],
+                patterns: [new Pattern(rowCount: 32, channels: 4), new Pattern(rowCount: 32, channels: 4)],
                 BPM: defaultBPM
             );
+            VerticalScrollBar.Maximum = totalRowCount;
+            HorizontalScrollBar.Maximum = 3; // TODO: make this the number of channels
         }
 
         private void InitialiseTracker(string soundFont, Pattern[] patterns, int BPM)
         {
             engine?.ResetTracker();
             engine?.Dispose();
+            DisableEventListeners();
 
             engine = new SynthEngine(soundFont);
             engine.Tracker.Patterns = patterns;
@@ -54,11 +59,26 @@ namespace sfTracker
             for (int i = 0; i < Tracker.Patterns.Count; i++)
                 totalRowCount += Tracker.Patterns[i].RowCount;
 
+            EnableEventListeners();
+            Console.WriteLine("Tracker initialized!");
+        }
+
+        private void DisableEventListeners()
+        {
+            CompositionTarget.Rendering -= (s, e) => Tracker.SetCurrentRow(engine.Tracker.CurrentRow);
+            Tracker.PlaybackStarted -= StartPlayback;
+            Tracker.VerticalScrollbarValueChanged -= SetVerticalScrollbarValue;
+            Tracker.HorizontalScrollbarValueChanged -= SetHorizontalScrollbarValue;
+            Tracker.AdvancedRow -= AdvanceRow;
+        }
+
+        private void EnableEventListeners()
+        {
             CompositionTarget.Rendering += (s, e) => Tracker.SetCurrentRow(engine.Tracker.CurrentRow);
             Tracker.PlaybackStarted += StartPlayback;
-            Tracker.ScrollbarValueChanged += SetScrollbarValue;
-
-            Console.WriteLine("Tracker initialized!");
+            Tracker.VerticalScrollbarValueChanged += SetVerticalScrollbarValue;
+            Tracker.HorizontalScrollbarValueChanged += SetHorizontalScrollbarValue;
+            Tracker.AdvancedRow += AdvanceRow;
         }
 
         public void StartRendering()
@@ -74,7 +94,7 @@ namespace sfTracker
 
             Tracker.CurrentRowPosition = Math.Floor(time / rowDuration) % totalRowCount;
 
-            SetScrollbarValue(Tracker.CurrentRowPosition);
+            SetVerticalScrollbarValue(Tracker.CurrentRowPosition);
 
             InvalidateVisual();
         }
@@ -106,6 +126,9 @@ namespace sfTracker
 
             if (!IsPlaying)
             {
+                //currentRow = 0;
+                //SetVerticalScrollbarValue(0);
+                //Tracker._firstVisibleRow = 0;
                 IsPlaying = true;
                 playbackClock.Restart();
                 CompositionTarget.Rendering += OnFrame;
@@ -114,18 +137,27 @@ namespace sfTracker
             {
                 IsPlaying = false;
                 playbackClock.Stop();
+                currentRow = 0;
+                SetVerticalScrollbarValue(0);
+                Tracker._firstVisibleRow = 0;
                 CompositionTarget.Rendering -= OnFrame;
-                SetScrollbarValue(0);
             }
 
             InvalidateVisual();
             Console.WriteLine("Tracker started!");
         }
 
-        public void SetScrollbarValue(double value)
+        public void SetVerticalScrollbarValue(double value)
         {
             preventScrollbarEvent = true;
-            TrackerScrollBar.Value = value;
+            VerticalScrollBar.Value = value;
+            preventScrollbarEvent = false;
+        }
+
+        public void SetHorizontalScrollbarValue(double value)
+        {
+            preventScrollbarEvent = true;
+            HorizontalScrollBar.Value = value;
             preventScrollbarEvent = false;
         }
 
@@ -136,15 +168,21 @@ namespace sfTracker
             if (e.Delta > 0)
             {
                 Tracker.MoveUp();
-                SetScrollbarValue(TrackerScrollBar.Value-TrackerScrollBar.SmallChange);
+                SetVerticalScrollbarValue(VerticalScrollBar.Value - VerticalScrollBar.SmallChange);
 
                 Tracker._firstVisibleRow -= 1;
             }
             else if (e.Delta < 0)
             {
-
                 Tracker.MoveDown();
-                SetScrollbarValue(TrackerScrollBar.Value+TrackerScrollBar.SmallChange);
+                SetVerticalScrollbarValue(VerticalScrollBar.Value + VerticalScrollBar.SmallChange);
+
+                if (VerticalScrollBar.Value > totalRowCount)
+                {
+                    SetVerticalScrollbarValue(0);
+                    Tracker._firstVisibleRow = 0;
+                    return;
+                }
 
                 if (!IsPlaying && Tracker.currentPatternIndex == 0 && Tracker.currentRow < 8)
                     return;
@@ -157,9 +195,9 @@ namespace sfTracker
 
             if (Tracker._firstVisibleRow > totalRowCount - Tracker.VisibleRowCount)
                 Tracker._firstVisibleRow = totalRowCount - Tracker.VisibleRowCount;
-            }
+        }
 
-        private void TrackerScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        private void VerticalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (!IsPlaying && preventScrollbarEvent)
                 return;
@@ -167,11 +205,48 @@ namespace sfTracker
             int prevRow = currentRow;
             currentRow = (int)e.NewValue;
 
+            Console.WriteLine(prevRow + " " + currentRow);
+
             AdvanceRow(prevRow, currentRow);
         }
 
-        private void AdvanceRow(int prevRow, int currentRow)
+        private void HorizontalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
+            if (!IsPlaying && preventScrollbarEvent)
+                return;
+
+            Console.WriteLine(e.NewValue);
+            int prevColumn = currentColumn;
+            currentColumn = (int)Math.Round(e.NewValue);
+
+            AdvanceColumn(prevColumn, currentColumn);
+        }
+
+        private void AdvanceRow(int prevRow, int currentRow) //TODO: fix behaviour, currently works fine until scrolled with mouse, then reverses logic??
+            {
+
+            Console.WriteLine(prevRow + " " + currentRow);
+
+            if (currentRow == totalRowCount)
+            {
+                return;
+            }
+
+            if (Math.Abs(prevRow - currentRow) > 1) // TODO: fix moving down scroll then pressing play, not resetting properly
+            {
+                preventScrollbarEvent = true;
+                SetVerticalScrollbarValue(0);
+                Tracker._firstVisibleRow = 0;
+                return;
+            }
+
+            if (prevRow == totalRowCount - 1 && currentRow == 0)
+            {
+                Tracker.MoveDown();
+                Tracker._firstVisibleRow = 0;
+                return;
+            }
+
             if (prevRow > currentRow)
             {
                 Tracker.MoveUp();
@@ -179,7 +254,6 @@ namespace sfTracker
             }
             else if (prevRow < currentRow)
             {
-
                 Tracker.MoveDown();
 
                 if (!IsPlaying && Tracker.currentPatternIndex == 0 && Tracker.currentRow < 8)
@@ -193,6 +267,20 @@ namespace sfTracker
 
             if (Tracker._firstVisibleRow > totalRowCount - Tracker.VisibleRowCount)
                 Tracker._firstVisibleRow = totalRowCount - Tracker.VisibleRowCount;
+
+            Tracker.Focus();
+        }
+
+        private void AdvanceColumn(int prevColumn, int currentColumn)
+        {
+            if (prevColumn < currentColumn)
+            {
+                Tracker.MoveRight();
+            }
+            else if (prevColumn > currentColumn)
+            {
+                Tracker.MoveLeft();
+            }
         }
 
         // https://youtu.be/Heq8qve1Vts

@@ -4,11 +4,11 @@
     xmlns:local="clr-namespace:sfTracker"
     Title="Tracker"
     WindowState="Maximized"
-    Background="#1e1e1e">
+    Background="Black">
 
     <!-- https://github.com/angelsix/fasetto-word/blob/develop/Source/Fasetto.Word/Styles/Scroll.xaml -->
     <Window.Resources>
-        <Style x:Key="ScrollBarThumb" TargetType="{x:Type Thumb}">
+        <Style x:Key="VerticalScrollBarThumb" TargetType="{x:Type Thumb}">
             <Setter Property="OverridesDefaultStyle" Value="true"/>
             <Setter Property="IsTabStop" Value="false"/>
             <Setter Property="Template">
@@ -18,8 +18,26 @@
                                 SnapsToDevicePixels="True"
                                 Background="FloralWhite"
                                 CornerRadius="1"
-                                Height="NaN"
-                                Width="NaN" Margin="-2,0,-2,-53"/>
+                                Height="53"
+                                Width="NaN"
+                                Margin="0,0,-5,-53"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HorizontalScrollBarThumb" TargetType="{x:Type Thumb}">
+            <Setter Property="OverridesDefaultStyle" Value="true"/>
+            <Setter Property="IsTabStop" Value="false"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Border x:Name="rectangle"
+                        SnapsToDevicePixels="True"
+                        Background="FloralWhite"
+                        CornerRadius="1"
+                        Height="NaN"
+                        Width="200" Margin="-200 -5 0 0"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -36,12 +54,13 @@
                     <ControlTemplate TargetType="{x:Type ScrollBar}">
                         <Grid x:Name="Bg" SnapsToDevicePixels="true" Background="Transparent">
 
-                            <Border Padding="0 4">
+                            <Border Padding="0 5" Background="Transparent">
                                 <Track x:Name="PART_Track"
-                               IsDirectionReversed="true"
-                               IsEnabled="{TemplateBinding IsMouseOver}"
-                               Width="10"
-                               HorizontalAlignment="Center">
+                                   IsDirectionReversed="true"
+                                   IsEnabled="{TemplateBinding IsMouseOver}"
+                                   Width="10"
+                                   HorizontalAlignment="Center"
+                                >
                                     <Track.DecreaseRepeatButton>
                                         <RepeatButton Opacity="0" Command="{x:Static ScrollBar.PageUpCommand}" />
                                     </Track.DecreaseRepeatButton>
@@ -49,7 +68,7 @@
                                         <RepeatButton Opacity="0" Command="{x:Static ScrollBar.PageDownCommand}" />
                                     </Track.IncreaseRepeatButton>
                                     <Track.Thumb>
-                                        <Thumb Style="{StaticResource ScrollBarThumb}" />
+                                        <Thumb Style="{StaticResource VerticalScrollBarThumb}" />
                                     </Track.Thumb>
                                 </Track>
                             </Border>
@@ -71,7 +90,7 @@
                                 <Grid x:Name="Bg" SnapsToDevicePixels="true">
                                     <Track x:Name="PART_Track"
                                     IsEnabled="{TemplateBinding IsMouseOver}"
-                                    Height="6"
+                                    Height="5"
                                        >
                                         <Track.DecreaseRepeatButton>
                                             <RepeatButton Opacity="0" Command="{x:Static ScrollBar.PageLeftCommand}"/>
@@ -80,7 +99,7 @@
                                             <RepeatButton Opacity="0" Command="{x:Static ScrollBar.PageRightCommand}"/>
                                         </Track.IncreaseRepeatButton>
                                         <Track.Thumb>
-                                            <Thumb Style="{StaticResource ScrollBarThumb}" />
+                                            <Thumb Style="{StaticResource HorizontalScrollBarThumb}" />
                                         </Track.Thumb>
                                     </Track>
                                 </Grid>
@@ -90,14 +109,43 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="VerticalLineTop" TargetType="Line">
+            <Setter Property="Stroke" Value="White"/>
+            <Setter Property="StrokeThickness" Value="1"/>
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Y1" Value="11"/>
+            <Setter Property="Y2" Value="20"/>
+        </Style>
+
+        <Style x:Key="VerticalLineMiddle" TargetType="Line">
+            <Setter Property="Stroke" Value="White"/>
+            <Setter Property="StrokeThickness" Value="1"/>
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Y1" Value="125"/>
+            <Setter Property="Y2" Value="1000"/>
+        </Style>
+
+        <Style x:Key="VerticalLineBottom" TargetType="Line">
+            <Setter Property="Stroke" Value="White"/>
+            <Setter Property="StrokeThickness" Value="1"/>
+            <Setter Property="Grid.Row" Value="1"/>
+            <Setter Property="Y1" Value="0"/>
+            <Setter Property="Y2" Value="1000"/>
+        </Style>
     </Window.Resources>
-    <Grid>
+    
+    <Grid Panel.ZIndex="0">
         <!--<Button Content="Button" HorizontalAlignment="Left" Margin="840,84,0,0" VerticalAlignment="Top" Click="Button_Click" Focusable="False"/>-->
         <Grid.RowDefinitions>
-            <RowDefinition Height="*" /> <!-- section for controls + instruments -->
-            <RowDefinition Height="250" /> <!-- section for above tracker -->
-            <RowDefinition Height="*" /> <!-- section for tracker + scrollbar -->
-            <RowDefinition Height="100" /> <!-- empty space to prevent going below window -->
+            <RowDefinition Height="250" />
+            <!-- section for controls + instruments -->
+            <RowDefinition Height="20" />
+            <!-- section for above tracker -->
+            <RowDefinition Height="*" />
+            <!-- section for tracker + scrollbar -->
+            <RowDefinition Height="30" />
+            <!-- section for tracker + scrollbar -->
         </Grid.RowDefinitions>
 
         <!-- Container for horizontally aligned elements in the bottom half -->
@@ -126,35 +174,244 @@
             </Border>
         </Grid>
 
-        <Border BorderThickness="1" Height="5" BorderBrush="White" Grid.Row="1"/>
+        <Grid Background="Transparent"  PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="1">
+            <Border BorderThickness="1" Height="1" BorderBrush="White" Grid.Row="1"/>
+
+            <Line Style="{StaticResource VerticalLineTop}" X1="10" X2="10"/>
+            <Line Style="{StaticResource VerticalLineTop}" X1="50" X2="50"/>
+            <Line Style="{StaticResource VerticalLineTop}" X1="170" X2="170"/>
+            <Line Style="{StaticResource VerticalLineTop}" X1="290" X2="290"/>
+            <Line Style="{StaticResource VerticalLineTop}" X1="410" X2="410"/>
+            <Line Style="{StaticResource VerticalLineTop}" X1="530" X2="530"/>
+        </Grid>
+
+        <Line Style="{StaticResource VerticalLineMiddle}" X1="10" X2="10"/>
+        <Line Style="{StaticResource VerticalLineMiddle}" X1="50" X2="50"/>
+        <Line Style="{StaticResource VerticalLineMiddle}" X1="170" X2="170"/>
+        <Line Style="{StaticResource VerticalLineMiddle}" X1="290" X2="290"/>
+        <Line Style="{StaticResource VerticalLineMiddle}" X1="410" X2="410"/>
+        <Line Style="{StaticResource VerticalLineMiddle}" X1="530" X2="530"/>
 
         <!-- Container for horizontally aligned elements in the bottom half -->
         <Grid Background="Transparent"  PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" /> <!-- tracker part -->
-                <ColumnDefinition Width="Auto" /> <!-- scroll bar part -->
+                <ColumnDefinition Width="*" />
+                <!-- tracker part -->
+                <ColumnDefinition Width="Auto" />
+                <!-- scroll bar part -->
             </Grid.ColumnDefinitions>
+
+            <Line Style="{StaticResource VerticalLineBottom}" X1="10" X2="10"/>
+            <Line Style="{StaticResource VerticalLineBottom}" X1="50" X2="50"/>
+            <Line Style="{StaticResource VerticalLineBottom}" X1="170" X2="170"/>
+            <Line Style="{StaticResource VerticalLineBottom}" X1="290" X2="290"/>
+            <Line Style="{StaticResource VerticalLineBottom}" X1="410" X2="410"/>
+            <Line Style="{StaticResource VerticalLineBottom}" X1="530" X2="530"/>
 
             <!-- TrackerGrid aligned left -->
             <local:TrackerGrid x:Name="Tracker"
                                Grid.Column="0"
                                HorizontalAlignment="Left"
                                VerticalAlignment="Stretch"
-                               Margin="50 0 0 10"
+                               Margin="50 200 0 200"
                                />
 
             <!-- ScrollBar aligned right -->
-            <ScrollBar x:Name="TrackerScrollBar"
+            <!--<ScrollBar x:Name="VerticalScrollBar"
                        Grid.Column="1"
                        Orientation="Vertical"
                        Width="10"
-                       Margin="0 0 10 0"
+                       Margin="0 0 10 50"
                        VerticalAlignment="Stretch"
                        Minimum="0"
-                       Maximum="63"
                        SmallChange="1"
                        LargeChange="1"
-                       ValueChanged="TrackerScrollBar_ValueChanged"/>
+                       ValueChanged="VerticalScrollBar_ValueChanged"/>-->
+
+            <Slider
+                x:Name="VerticalScrollBar"
+                Orientation="Vertical"
+                Grid.Column="1"
+                Margin="0 0 10 10"
+                Minimum="0"
+                SmallChange="1"
+                TickFrequency="1"
+                IsSnapToTickEnabled="True"
+                ValueChanged="VerticalScrollBar_ValueChanged"
+                >
+                <Slider.LayoutTransform>
+                    <ScaleTransform ScaleY="-1"/>
+                </Slider.LayoutTransform>
+
+                <Slider.Template>
+                    <ControlTemplate TargetType="Slider">
+                        <Track x:Name="PART_Track" IsDirectionReversed="False">
+
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                            </Track.DecreaseRepeatButton>
+
+                            <Track.Thumb>
+                                <Thumb Width="10" Height="100">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border x:Name="ThumbBorder" Background="FloralWhite" CornerRadius="5" SnapsToDevicePixels="True">
+                                                <Border.RenderTransform>
+                                                    <ScaleTransform x:Name="ThumbScale" ScaleX="1" ScaleY="1"/>
+                                                </Border.RenderTransform>
+                                                <Border.RenderTransformOrigin>0.5,0.5</Border.RenderTransformOrigin>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Trigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation
+                                                                    Storyboard.TargetName="ThumbBorder"
+                                                                    Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                                                    To="1.2"
+                                                                    Duration="0:0:0.1"
+                                                                    FillBehavior="HoldEnd"
+                                                                />
+                                                                <ColorAnimation
+                                                                    Storyboard.TargetName="ThumbBorder"
+                                                                    Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                                    To="DimGray"
+                                                                    Duration="0:0:0.1"
+                                                                />  
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.EnterActions>
+                                                    <Trigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbBorder"
+                                                                    Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                                                    To="1"
+                                                                    Duration="0:0:0.1"
+                                                                />
+                                                                <ColorAnimation
+                                                                    Storyboard.TargetName="ThumbBorder"
+                                                                    Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                                    To="FloralWhite"
+                                                                    Duration="0:0:0.05"
+                                                                />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.ExitActions>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                            </Track.IncreaseRepeatButton>
+
+                        </Track>
+                    </ControlTemplate>
+                </Slider.Template>
+            </Slider>
+        </Grid>
+
+        <!-- Container for horizontally aligned elements in the bottom half -->
+        <Grid Background="#1e1e1e" Grid.Row="3" Panel.ZIndex="1">
+            <Border Background="Transparent" Margin="10 0 0 0" BorderThickness="0 1 0 0" BorderBrush="White" />
+            <!--<ScrollBar x:Name="HorizontalScrollBar"
+                   Orientation="Horizontal"
+                   Height="14"
+                   Maximum="500"
+                   Margin="210 5 20 0"
+                   Minimum="0"
+                   SmallChange="1"
+                   LargeChange="1"
+                   ViewportSize="0"
+                   ValueChanged="HorizontalScrollBar_ValueChanged"
+                   Panel.ZIndex="2"/>-->
+            <Slider
+                x:Name="HorizontalScrollBar"
+                Minimum="0"
+                Maximum="100"
+                TickFrequency="1"
+                IsSnapToTickEnabled="True"
+                Height="20"
+                ValueChanged="HorizontalScrollBar_ValueChanged"
+                >
+
+                <Slider.Template>
+                    <ControlTemplate TargetType="Slider">
+                        <Track x:Name="PART_Track"
+                   IsDirectionReversed="False">
+
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                            </Track.DecreaseRepeatButton>
+
+                            <Track.Thumb>
+                                <Thumb Width="100" Height="10" Margin="10 0 20 0">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border x:Name="ThumbBorder" Background="FloralWhite" CornerRadius="5" SnapsToDevicePixels="True">
+                                                <Border.RenderTransform>
+                                                    <ScaleTransform x:Name="ThumbScale" ScaleX="1" ScaleY="1"/>
+                                                </Border.RenderTransform>
+                                                <Border.RenderTransformOrigin>0.5,0.5</Border.RenderTransformOrigin>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Trigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation
+                                                                    Storyboard.TargetName="ThumbBorder"
+                                                                    Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                                                    To="1.2"
+                                                                    Duration="0:0:0.1"
+                                                                    FillBehavior="HoldEnd"
+                                                                />
+                                                                <ColorAnimation
+                                                                    Storyboard.TargetName="ThumbBorder"
+                                                                    Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                                    To="DimGray"
+                                                                    Duration="0:0:0.1"
+                                                                />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.EnterActions>
+                                                    <Trigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbBorder"
+                                                                    Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                                                    To="1"
+                                                                    Duration="0:0:0.1"
+                                                                />
+                                                                <ColorAnimation
+                                                                    Storyboard.TargetName="ThumbBorder"
+                                                                    Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                                    To="FloralWhite"
+                                                                    Duration="0:0:0.05"
+                                                                />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.ExitActions>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                            </Track.IncreaseRepeatButton>
+
+                        </Track>
+                    </ControlTemplate>
+                </Slider.Template>
+            </Slider>
         </Grid>
     </Grid>
 </Window>
