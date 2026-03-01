@@ -113,13 +113,14 @@ namespace sfTracker.Tracker
         /// <param name="note">the MIDI pitch value of the note</param>
         /// <param name="instrument">the instrument being played</param>
         /// <param name="velocity">the volume of the note</param>
-        private void TriggerNote(int channel, int note, int instrument, int velocity)
+        private void TriggerNote(int channel, int note, int bank, int instrument, int velocity)
         {
             var voice = ActiveVoices[channel]; // get active voice for current channel (column)
 
             if (voice == null) // if no voice active in this channel
             {
                 // TODO: move to own function
+                SetBank(channel, bank);
                 SetInstrument(channel, instrument);
                 NoteOn(channel, note, velocity);
             }
@@ -128,11 +129,12 @@ namespace sfTracker.Tracker
                 //Console.WriteLine($"Channel: {channel}, Note: {voice.Note}");
                 // TODO: move to own function
                 NoteOff(channel, voice.Note);
+                SetBank(channel, bank);
                 SetInstrument(channel, instrument);
                 NoteOn(channel, note, velocity);
             }
 
-            ActiveVoices[channel] = new Voice(note, instrument, velocity); // create a voice and update ActiveVoices array
+            ActiveVoices[channel] = new Voice(note, bank, instrument, velocity); // create a voice and update ActiveVoices array
         }
 
         /// <summary>
@@ -149,7 +151,7 @@ namespace sfTracker.Tracker
             foreach (var cell in row.Cells)
             {
                 if (cell.Note >= 0)
-                    TriggerNote(cell.Channel, cell.Note, cell.Instrument, cell.Velocity);
+                    TriggerNote(cell.Channel, cell.Note, cell.Bank, cell.Instrument, cell.Velocity);
 
                 // TODO: effect parsing
             }
@@ -192,7 +194,7 @@ namespace sfTracker.Tracker
         /// Method to return the MIDI note being triggered.
         /// </summary>
         /// <param name="note">the MIDI pitch of the note</param>
-        public string CalculateMidiNote(int note)
+        public static string CalculateMidiNote(int note)
         {
             string[] notes = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
             int octave = (int)Math.Floor(note / 12.0) - 1;
@@ -230,7 +232,7 @@ namespace sfTracker.Tracker
         {
             //synthesizer.ProcessMidiMessage(channel, 0xB0, 10, 0); // TODO: implement panning effects (0-127)
             synthesizer.NoteOn(channel, note, velocity);
-            Console.WriteLine($"Played {CalculateMidiNote(note)} on channel {channel}");
+            //Console.WriteLine($"Played {CalculateMidiNote(note)} on channel {channel}");
         }
 
         /// <summary>
@@ -241,7 +243,7 @@ namespace sfTracker.Tracker
         public void NoteOff(int channel, int note)
         {
             synthesizer.NoteOff(channel, note);
-            Console.WriteLine($"Stopped {CalculateMidiNote(note)} on channel {channel}");
+            //Console.WriteLine($"Stopped {CalculateMidiNote(note)} on channel {channel}");
         }
 
         /// <summary>
@@ -255,9 +257,30 @@ namespace sfTracker.Tracker
             //Console.WriteLine($"Loaded {soundfont.Presets[programNumber]} from {soundfont.Info.BankName} soundfont.");
         }
 
+        public void SetBank(int channel, int bankNumber)
+        {
+            synthesizer.ProcessMidiMessage(channel, 0xB0, 0, bankNumber);  // Set the bank number
+            //Console.WriteLine($"Loaded {soundfont.Presets[programNumber]} from {soundfont.Info.BankName} soundfont.");
+        }
+
         private static void ProcessTickEffects()
         {
             // volume, vibrato, portamento, etc. here
+        }
+
+        public void TriggerNoteWithKeyboard(int channel, int note, int bank, int instrument, int velocity, bool trigger = false)
+        {
+            if (trigger) {
+                Console.WriteLine($"ON: channel {channel}, note {note}, bank {bank}, instr {instrument}, vel {velocity}");
+                SetBank(channel, bank);
+                SetInstrument(channel, instrument);
+                NoteOn(channel, note, velocity);
+            }
+            else
+            {
+                Console.WriteLine($"OFF: channel {channel}, note {note}, bank {bank}, instr {instrument}, vel {velocity}");
+                NoteOff(channel, note);
+            }
         }
     }
 }
