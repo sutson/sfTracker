@@ -1,10 +1,10 @@
 ﻿<Window x:Class="sfTracker.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="clr-namespace:sfTracker"
-    Title="Tracker"
+    xmlns:local="clr-namespace:sfTracker.GUI"
+        Title="Tracker"
     WindowState="Maximized"
-    Background="Black">
+    Background="#1f1e33">
 
     <!-- https://github.com/angelsix/fasetto-word/blob/develop/Source/Fasetto.Word/Styles/Scroll.xaml -->
     <Window.Resources>
@@ -133,6 +133,75 @@
             <Setter Property="Y1" Value="0"/>
             <Setter Property="Y2" Value="1000"/>
         </Style>
+
+        <ControlTemplate x:Key="HorizontalSliderTemplate" TargetType="Slider">
+            <Track x:Name="PART_Track" IsDirectionReversed="False">
+
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                </Track.DecreaseRepeatButton>
+
+                <Track.Thumb>
+                    <Thumb Width="100" Height="10" Margin="10 0 20 0">
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="Thumb">
+                                <Border x:Name="ThumbBorder" Background="FloralWhite" CornerRadius="5" SnapsToDevicePixels="True">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform x:Name="ThumbScale" ScaleX="1" ScaleY="1"/>
+                                    </Border.RenderTransform>
+                                    <Border.RenderTransformOrigin>0.5,0.5</Border.RenderTransformOrigin>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Trigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                 Storyboard.TargetName="ThumbBorder"
+                                                 Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                                 To="1.2"
+                                                 Duration="0:0:0.1"
+                                                 FillBehavior="HoldEnd"
+                                             />
+                                                    <ColorAnimation
+                                                 Storyboard.TargetName="ThumbBorder"
+                                                 Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                 To="DimGray"
+                                                 Duration="0:0:0.1"
+                                             />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </Trigger.EnterActions>
+                                        <Trigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetName="ThumbBorder"
+                                                 Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                                 To="1"
+                                                 Duration="0:0:0.1"
+                                             />
+                                                    <ColorAnimation
+                                                 Storyboard.TargetName="ThumbBorder"
+                                                 Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                 To="FloralWhite"
+                                                 Duration="0:0:0.05"
+                                             />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </Trigger.ExitActions>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
+                </Track.Thumb>
+
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                </Track.IncreaseRepeatButton>
+
+            </Track>
+        </ControlTemplate>
     </Window.Resources>
     
     <Grid Panel.ZIndex="0">
@@ -160,17 +229,114 @@
 
             <!-- MARGIN: LEFT, TOP, RIGHT, BOTTOM -->
             <Border Grid.Column="2" BorderThickness="1" BorderBrush="White" Margin="0 5 5 10">
-                <TextBlock Background="Transparent" Grid.Column="2" HorizontalAlignment="Stretch">
-                    <Grid>
+                <Grid Background="Transparent" HorizontalAlignment="Stretch">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="40" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="100" />
                             <ColumnDefinition Width="5" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Button Margin="5 5 0 5" Padding="5" Click="Button_OpenSF2" Grid.Column="0">Import .sf2 File</Button>
-                        <TextBlock x:Name="SelectedSoundFont" Text="" VerticalAlignment="Center" Grid.Column="2" />
+                        <Button VerticalAlignment="Center" Margin="5 5 0 5" Padding="5" Click="Button_OpenSF2" Grid.Column="0">Import .sf2 File</Button>
+                        <TextBlock x:Name="SelectedSoundFont" Text="" VerticalAlignment="Center" Grid.Column="2" Foreground="FloralWhite" />
                     </Grid>
-                </TextBlock>
+                    <Grid Grid.Row="1">
+                        <ListBox Grid.Row="0"
+                             ItemsSource="{Binding Presets}"
+                             SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                             PreviewKeyDown="ListBox_PreviewKeyDown"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        >
+                            <!--<ListBox.Resources>
+                                <Style TargetType="ScrollBar">
+                                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                </Style>
+                            </ListBox.Resources>-->
+
+                            <ListBox.Resources>
+                                <Style x:Key="HorizontalThumbStyle" TargetType="Thumb">
+                                    <Setter Property="Height" Value="8"/>
+                                    <Setter Property="Background" Value="FloralWhite"/>
+                                    <Setter Property="Margin" Value="5 0 5 0"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="{TemplateBinding Background}" CornerRadius="4"/>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+
+                                <Style TargetType="ScrollBar">
+                                    <Style.Triggers>
+                                        <Trigger Property="Orientation" Value="Horizontal">
+                                            <Setter Property="Height" Value="8"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ScrollBar">
+                                                        <Grid Background="Transparent">
+                                                            <Track x:Name="PART_Track">
+
+                                                                <Track.DecreaseRepeatButton>
+                                                                    <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                                                                </Track.DecreaseRepeatButton>
+
+                                                                <Track.Thumb>
+                                                                    <Thumb Style="{StaticResource HorizontalThumbStyle}"/>
+                                                                </Track.Thumb>
+
+                                                                <Track.IncreaseRepeatButton>
+                                                                    <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                                                                </Track.IncreaseRepeatButton>
+
+                                                            </Track>
+                                                        </Grid>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Trigger>
+
+                                    </Style.Triggers>
+                                </Style>
+
+                            </ListBox.Resources>
+
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Vertical" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                                    <Setter Property="ScrollViewer.HorizontalAlignment" Value="Stretch"/>
+
+                                    <!--<Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                        </Trigger>
+                                    </Style.Triggers>-->
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Display}"  />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Grid>
             </Border>
         </Grid>
 
@@ -317,7 +483,7 @@
         </Grid>
 
         <!-- Container for horizontally aligned elements in the bottom half -->
-        <Grid Background="#1e1e1e" Grid.Row="3" Panel.ZIndex="1">
+        <Grid Background="#1f1e33" Grid.Row="3" Panel.ZIndex="1">
             <Border Background="Transparent" Margin="10 0 0 0" BorderThickness="0 1 0 0" BorderBrush="White" />
             <!--<ScrollBar x:Name="HorizontalScrollBar"
                    Orientation="Horizontal"
@@ -338,80 +504,8 @@
                 IsSnapToTickEnabled="True"
                 Height="20"
                 ValueChanged="HorizontalScrollBar_ValueChanged"
-                >
-
-                <Slider.Template>
-                    <ControlTemplate TargetType="Slider">
-                        <Track x:Name="PART_Track"
-                   IsDirectionReversed="False">
-
-                            <Track.DecreaseRepeatButton>
-                                <RepeatButton Opacity="0" IsHitTestVisible="False"/>
-                            </Track.DecreaseRepeatButton>
-
-                            <Track.Thumb>
-                                <Thumb Width="100" Height="10" Margin="10 0 20 0">
-                                    <Thumb.Template>
-                                        <ControlTemplate TargetType="Thumb">
-                                            <Border x:Name="ThumbBorder" Background="FloralWhite" CornerRadius="5" SnapsToDevicePixels="True">
-                                                <Border.RenderTransform>
-                                                    <ScaleTransform x:Name="ThumbScale" ScaleX="1" ScaleY="1"/>
-                                                </Border.RenderTransform>
-                                                <Border.RenderTransformOrigin>0.5,0.5</Border.RenderTransformOrigin>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Trigger.EnterActions>
-                                                        <BeginStoryboard>
-                                                            <Storyboard>
-                                                                <DoubleAnimation
-                                                                    Storyboard.TargetName="ThumbBorder"
-                                                                    Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                                                    To="1.2"
-                                                                    Duration="0:0:0.1"
-                                                                    FillBehavior="HoldEnd"
-                                                                />
-                                                                <ColorAnimation
-                                                                    Storyboard.TargetName="ThumbBorder"
-                                                                    Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                                    To="DimGray"
-                                                                    Duration="0:0:0.1"
-                                                                />
-                                                            </Storyboard>
-                                                        </BeginStoryboard>
-                                                    </Trigger.EnterActions>
-                                                    <Trigger.ExitActions>
-                                                        <BeginStoryboard>
-                                                            <Storyboard>
-                                                                <DoubleAnimation Storyboard.TargetName="ThumbBorder"
-                                                                    Storyboard.TargetProperty="RenderTransform.ScaleY"
-                                                                    To="1"
-                                                                    Duration="0:0:0.1"
-                                                                />
-                                                                <ColorAnimation
-                                                                    Storyboard.TargetName="ThumbBorder"
-                                                                    Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                                    To="FloralWhite"
-                                                                    Duration="0:0:0.05"
-                                                                />
-                                                            </Storyboard>
-                                                        </BeginStoryboard>
-                                                    </Trigger.ExitActions>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Thumb.Template>
-                                </Thumb>
-                            </Track.Thumb>
-
-                            <Track.IncreaseRepeatButton>
-                                <RepeatButton Opacity="0" IsHitTestVisible="False"/>
-                            </Track.IncreaseRepeatButton>
-
-                        </Track>
-                    </ControlTemplate>
-                </Slider.Template>
-            </Slider>
+                Template="{StaticResource HorizontalSliderTemplate}"
+            />
         </Grid>
     </Grid>
 </Window>
