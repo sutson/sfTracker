@@ -26,9 +26,7 @@ namespace sfTracker.Audio
             tracker = new TrackerEngine(synthesizer, sampleRate);
             waveProvider = new MeltySynthWaveProvider(synthesizer, tracker, sampleRate);
 
-            //Console.WriteLine($"{soundFontPath} - output: {output}");
             // initialise NAudio output
-            //output = new WaveOutEvent();
             output = new WasapiOut(AudioClientShareMode.Shared, true, 5);
             output.Init(waveProvider);
             output.Play();
@@ -84,7 +82,6 @@ namespace sfTracker.Audio
             tracker.CurrentTick = 0;  // reset tick counter
             tracker.tickSampleCounter = 0;  // reset sample counter
 
-            //output.Stop();
             synthesizer.Reset(); // reset MeltySynth Synthesizer
         }
 

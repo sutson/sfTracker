@@ -61,20 +61,6 @@ namespace sfTracker.Tracker
             Speed = speed;
         }
 
-        ///// <summary>
-        ///// Method for audio processing.
-        ///// </summary>
-        //public void ProcessAudio(int frames)
-        //{
-        //    tickSampleCounter += frames;
-
-        //    while (tickSampleCounter >= samplesPerTick)
-        //    {
-        //        tickSampleCounter -= samplesPerTick;
-        //        AdvanceTick();
-        //    }
-        //}
-
         /// <summary>
         /// Method for advancing forward one tick.
         /// </summary>

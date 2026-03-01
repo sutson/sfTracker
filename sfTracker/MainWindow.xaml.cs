@@ -1,12 +1,10 @@
 ﻿using sfTracker.Audio;
 using sfTracker.GUI;
 using sfTracker.Playback;
-using sfTracker.Tracker;
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -19,9 +17,9 @@ namespace sfTracker
         private readonly Stopwatch playbackClock = new();
         private readonly MainViewModel vm;
         private readonly int defaultBPM = 120;
+        private bool IsPlaybackScrolling = false;
         private int totalRowCount = 0;
-        private int currentColumn = 0;
-        private bool isPlaybackScrolling = false;
+
         public double currentRowPosition;
         public bool IsPlaying = false;
         public int currentlyPlayingNote;
@@ -125,12 +123,12 @@ namespace sfTracker
             if (!IsPlaying)
             {
                 IsPlaying = true;
-                isPlaybackScrolling = true;
+                IsPlaybackScrolling = true;
                 
                 Tracker.PatternCurrentRow = 0;
                 Tracker.FirstVisibleRow = 0;
                 VerticalScrollBar.Value = 0;
-                isPlaybackScrolling = false;
+                IsPlaybackScrolling = false;
 
                 playbackClock.Restart();
                 CompositionTarget.Rendering += OnFrame;
@@ -139,12 +137,12 @@ namespace sfTracker
             {
                 IsPlaying = false;
                 playbackClock.Stop();
-                isPlaybackScrolling = true;
+                IsPlaybackScrolling = true;
 
                 Tracker.PatternCurrentRow = 0;
                 Tracker.SetCurrentRow(0);
 
-                isPlaybackScrolling = false;
+                IsPlaybackScrolling = false;
 
                 CompositionTarget.Rendering -= OnFrame;
             }
@@ -182,57 +180,6 @@ namespace sfTracker
             }
         }
 
-        //private void AdvanceRow(int prevRow, int currentRow)
-        //{
-        //    if (currentRow == totalRowCount)
-        //    {
-        //        Tracker._firstVisibleRow = 0;
-        //        VerticalScrollBar.Value = 0;
-        //        Tracker.InvalidateVisual();
-        //        return;
-        //    }
-
-        //    if (currentRow == prevRow)
-        //        return;
-
-        //    //Console.WriteLine($"Curr: {currentRow}, Prev: {prevRow}");
-        //    int difference = currentRow - prevRow;
-
-
-        //    if (difference > 0)
-        //    {
-        //        if (difference > 0)
-        //        {
-        //            for (int i = 0; i < difference; i++)
-        //                Tracker.MoveDown();
-        //        }
-        //        else
-        //        {
-        //            for (int i = 0; i < Math.Abs(difference); i++)
-        //                Tracker.MoveUp();
-        //        }
-
-        //        //EnsureCursorVisible();
-        //        Tracker.InvalidateVisual();
-        //    }
-        //    else
-        //    {
-        //        for (int i = 0; i < Math.Abs(difference); i++)
-        //        {
-        //            Tracker.MoveUp();
-        //            Tracker._firstVisibleRow--;
-        //        }
-        //    }
-
-        //    if (Tracker._firstVisibleRow < 0)
-        //        Tracker._firstVisibleRow = 0;
-
-        //    if (Tracker._firstVisibleRow > totalRowCount - Tracker.VisibleRowCount)
-        //        Tracker._firstVisibleRow = totalRowCount - Tracker.VisibleRowCount;
-
-        //    Tracker.Focus();
-        //}
-
         private void Tracker_RowChanged(int newRow)
         {
             _internalScrollChange = true;
@@ -247,60 +194,6 @@ namespace sfTracker
             _internalScrollChange = false;
         }
 
-        //private void VerticalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        //{
-        //    //if (isPlaybackScrolling)
-        //    //    return;
-
-        //    //int prevRow = Tracker.GetCurrentGlobalRow();
-        //    //int currentRow = (int)e.NewValue;
-
-        //    //AdvanceRow(prevRow, currentRow);
-        //    //int newValue = (int)e.NewValue;
-        //    //Console.WriteLine((int)e.NewValue);
-        //    //if (newValue == totalRowCount)
-        //    //    Tracker._firstVisibleRow = 0;
-        //    //else
-        //    //    Tracker._firstVisibleRow = (int)e.NewValue;
-
-        //    //Tracker.InvalidateVisual();
-        //    //Tracker.Focus();
-
-        //    //int value = (int)e.NewValue;
-
-        //    //if (value == totalRowCount)
-        //    //{
-        //    //    WrapToTop();
-        //    //    return;
-        //    //}
-
-        //    //Tracker._firstVisibleRow = value;
-        //    //Tracker.InvalidateVisual();
-
-        //    if (_internalScrollChange)
-        //        return;
-
-        //    int targetRow = (int)e.NewValue;
-        //    int difference = targetRow - Tracker.currentRow;
-
-        //    if (difference > 0)
-        //    {
-        //        for (int i = 0; i < difference; i++)
-        //            Tracker.MoveDown();
-        //            EnsureCursorVisible();
-        //            InvalidateVisual();
-        //    }
-        //    else if (difference < 0)
-        //    {
-        //        for (int i = 0; i < Math.Abs(difference); i++)
-        //            Tracker.MoveUp();
-        //            EnsureCursorVisible();
-        //            InvalidateVisual();
-        //    }
-
-        //    Tracker.Focus();
-        //}
-
         private void VerticalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             Tracker.GlobalCurrentRow = (int)e.NewValue;
@@ -311,59 +204,9 @@ namespace sfTracker
 
         private void HorizontalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            //if (isPlaybackScrolling)
-            //    return;
-
             Tracker.GlobalCurrentColumn = (int)e.NewValue;
             Tracker.Focus();
-
-            //int prevColumn = Tracker.CurrentChannel;
-            //int currentColumn = (int)Math.Round(e.NewValue);
-
-            //AdvanceColumn(prevColumn, currentColumn);
         }
-
-        //private void AdvanceColumn(int prevColumn, int currentColumn)
-        //{
-        //    Console.WriteLine($"Prev: {prevColumn}, Curr: {currentColumn}");
-
-        //    if (currentColumn == 0 || currentColumn == 4)
-        //    {
-        //        return;
-        //    }
-
-        //    if (currentColumn == prevColumn)
-        //        return;
-
-        //    //Console.WriteLine($"Curr: {currentRow}, Prev: {prevRow}");
-        //    int difference = currentColumn - prevColumn;
-
-        //    if (difference > 0)
-        //    {
-        //        for (int i = 0; i < difference; i++)
-        //        {
-        //            Tracker.MoveRight();
-        //        }
-        //    }
-        //    else
-        //    {
-        //        for (int i = 0; i < Math.Abs(difference); i++)
-        //        {
-        //            Tracker.MoveLeft();
-        //        }
-        //    }
-
-        //    Tracker.Focus();
-        //    //if (prevColumn < currentColumn)
-        //    //{
-        //    //    Tracker.MoveRight();
-        //    //}
-        //    //else if (prevColumn > currentColumn)
-        //    //{
-        //    //    Tracker.MoveLeft();
-        //    //}
-        //    //Tracker.Focus();
-        //}
 
         // https://youtu.be/Heq8qve1Vts
         private void Button_OpenSF2(object sender, RoutedEventArgs e)
