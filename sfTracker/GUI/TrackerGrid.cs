@@ -1,71 +1,39 @@
 ﻿using sfTracker.Audio;
+using sfTracker.Controls;
 using sfTracker.Playback;
+using sfTracker.Tracker;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Net;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Shell;
-using System.Windows.Threading;
 
-namespace sfTracker;
+namespace sfTracker.GUI;
 public class TrackerGrid : FrameworkElement
 {
-    public int currentRow = 0;
-    public int currentChannel = 0;
+    public int CurrentRow = 0;
+    public int CurrentColumn = 0;
+    public int PatternCurrentRow = 0;
     public int currentPatternIndex = 0; // index in Patterns[]
-    public int _firstVisibleRow = 0;
+    public int FirstVisibleRow = 0;
     public int TotalRowCount = 0;
     public double VerticalScrollbarValue = 0;
     public double HorizontalScrollbarValue = 0;
+    private int RowOffset = 0;
+    private int SelectedBank = -1;
+    private int SelectedInstrument = -1;
+    public bool IsPlaying = false;
 
     public double RowHeight = 15;
     private const double ColumnWidth = 120;
     private readonly int LeadInRows = 8; // number of rows before the viewport starts scrolling
-
-    private static SolidColorBrush FourthRowHighlight;
-    private static SolidColorBrush InactiveFourthRowHighlight;
-    private static SolidColorBrush CurrentCellHighlight;
-    private static SolidColorBrush CurrentRowHighlight;
-    private static SolidColorBrush ActivePatternBrush;
-    private static SolidColorBrush InactivePatternBrush;
-    private static SolidColorBrush LowOpacityTextBrush;
-
-    private static SolidColorBrush InactiveTextBrush;
-    private static SolidColorBrush LowOpacityInactiveTextBrush;
-
     public SynthEngine Engine { get; set; }
 
     public TrackerGrid()
     {
-        FourthRowHighlight = new SolidColorBrush(Color.FromArgb(15, 255, 255, 255));
-        FourthRowHighlight.Freeze();
-
-        InactiveFourthRowHighlight = new SolidColorBrush(Color.FromArgb(5, 255, 255, 255));
-        InactiveFourthRowHighlight.Freeze();
-
-        CurrentCellHighlight = new SolidColorBrush(Color.FromArgb(80, 0, 120, 215));
-        CurrentCellHighlight.Freeze();
-
-        CurrentRowHighlight = new SolidColorBrush(Color.FromArgb(40, 10, 255, 255));
-        CurrentRowHighlight.Freeze();
-
-        ActivePatternBrush = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
-        ActivePatternBrush.Freeze();
-
-        InactivePatternBrush = new SolidColorBrush(Color.FromArgb(80, 200, 200, 200)); // greyed
-        InactivePatternBrush.Freeze();
-
-        LowOpacityTextBrush = new SolidColorBrush(Color.FromArgb(100, 255, 255, 255)); // greyed
-        LowOpacityTextBrush.Freeze();
-
-        InactiveTextBrush = new SolidColorBrush(Color.FromArgb(150, 255, 255, 255));
-        InactiveTextBrush.Freeze();
-
-        LowOpacityInactiveTextBrush = new SolidColorBrush(Color.FromArgb(50, 255, 255, 255)); // greyed
-        LowOpacityInactiveTextBrush.Freeze();
-
+        Brushes.Init();
         Focusable = true; // set focusable so key presses can be used to navigate/place notes
     }
 
@@ -86,8 +54,7 @@ public class TrackerGrid : FrameworkElement
 
     //
 
-    public static readonly DependencyProperty CurrentRowPositionProperty =
-    DependencyProperty.Register(
+    public static readonly DependencyProperty CurrentRowPositionProperty = DependencyProperty.Register(
         nameof(CurrentRowPosition),
         typeof(double),
         typeof(TrackerGrid),
@@ -100,8 +67,6 @@ public class TrackerGrid : FrameworkElement
         set => SetValue(CurrentRowPositionProperty, value);
     }
 
-    public bool IsPlaying = false;
-
     public void SetCurrentRow(int row)
     {
         CurrentRowPosition = row;
@@ -109,48 +74,35 @@ public class TrackerGrid : FrameworkElement
     }
 
     // Total number of rows
-    public int TotalRows { get; set; } = 64;
-
-    // Current row index
-    public int CurrentRow { get; private set; } = 0;
-
+    public int TotalRows { get; set; } = 128; // TODO: update to calculate on init
     public int VisibleRowCount => (int)(ActualHeight / RowHeight) + 1;
-
-    private int GetCurrentGlobalRow()
-    {
-        int globalRow = currentRow;
-
-        for (int i = 0; i < currentPatternIndex; i++)
-            globalRow += Patterns[i].RowCount;
-
-        return globalRow;
-    }
 
     protected override void OnRender(DrawingContext context)
     {
         base.OnRender(context);
 
+        //Point colSepStart = new Point(0, -209); TODO: decide if i want to render column seps like this
+        //Point colSepEnd = new Point(0, 1000);
+
+        //Pen linePen = new Pen(Brushes.ActivePatternBrush, 1);
+        //context.DrawLine(linePen, colSepStart, colSepEnd);
+
         if (Patterns == null || Patterns.Count == 0) return;
 
         int globalRowOffset = 0;
 
-        int currentGlobalRow = GetCurrentGlobalRow();
-
         for (int i = 0; i < Patterns.Count; i++)
         {
-            // TODO: fix currentPatternIndex to be the actual pattern being played instead of the selected pattern
-            var brush = (i == currentPatternIndex) ? ActivePatternBrush : InactivePatternBrush;
+            var brush = (i == currentPatternIndex) ? Brushes.ActivePatternBrush : Brushes.InactivePatternBrush;
 
             int rowCount = Patterns[i].RowCount; // get number of rows in current pattern
             int channelCount = Patterns[i].Rows[0].Cells.Length; // get number of channels (columns) in current pattern
-
-            //double visibleHeight = this.ActualHeight + 10 * RowHeight; // bottom half
 
             for (int row = 0; row < rowCount; row++)
             {
                 int absoluteRow = globalRowOffset + row;
 
-                double y = (absoluteRow - _firstVisibleRow) * RowHeight;
+                double y = (absoluteRow - FirstVisibleRow) * RowHeight;
 
                 // draw row number on the left
                 if (y + (LeadInRows * RowHeight) >= 0)
@@ -158,8 +110,8 @@ public class TrackerGrid : FrameworkElement
                         RenderText(
                             GetRowString(absoluteRow),
                             (i == currentPatternIndex) ?
-                                (row % 4 == 0 ? ActivePatternBrush : LowOpacityTextBrush) :
-                                (row % 4 == 0 ? InactiveTextBrush : LowOpacityInactiveTextBrush)
+                                (row % 4 == 0 ? Brushes.ActivePatternBrush : Brushes.LowOpacityTextBrush) :
+                                (row % 4 == 0 ? Brushes.InactiveTextBrush : Brushes.LowOpacityInactiveTextBrush)
                         ),
                         new Point(-31.5, y)
                     );
@@ -167,7 +119,10 @@ public class TrackerGrid : FrameworkElement
                 for (int channel = 0; channel < channelCount; channel++)
                 {
                     double x = channel * ColumnWidth; // horizontal width of tracker window
-                    //double y = (globalRowOffset + row) * RowHeight;       // veritcal height of tracker window
+
+                    //colSepStart.X += ColumnWidth; TODO: decide if i want to render column seps like this
+                    //colSepEnd.X += ColumnWidth;
+                    //context.DrawLine(linePen, colSepStart, colSepEnd);
 
                     var cell = Patterns[i].Rows[row].Cells[channel]; // cell at current position
 
@@ -180,21 +135,17 @@ public class TrackerGrid : FrameworkElement
                     if (row < rowCount && row % 4 == 0)
                     {
                         if (i == currentPatternIndex)
-                            context.DrawRectangle(FourthRowHighlight, null, new Rect(0, y, channelCount * ColumnWidth, RowHeight));
+                            context.DrawRectangle(Brushes.FourthRowHighlight, null, new Rect(0, y, channelCount * ColumnWidth, RowHeight));
                         else
-                            context.DrawRectangle(InactiveFourthRowHighlight, null, new Rect(0, y, channelCount * ColumnWidth, RowHeight));
+                            context.DrawRectangle(Brushes.InactiveFourthRowHighlight, null, new Rect(0, y, channelCount * ColumnWidth, RowHeight));
                     }
 
-                    // highlight current cell (TODO: might make this highlight the whole row)
-                    //if ((globalRowOffset + row) == currentRow && channel == currentChannel)
-                    //    context.DrawRectangle(CurrentCellHighlight, null, new Rect(x, (globalCurrentRow * RowHeight), ColumnWidth, RowHeight));
-
-                    if (absoluteRow == currentGlobalRow && channel == currentChannel)
+                    if (absoluteRow == GlobalCurrentRow && channel == CurrentColumn)
                     {
-                        double highlightY = (absoluteRow - _firstVisibleRow) * RowHeight; // TODO: fix this highlight lagging behind on restart?
+                        double highlightY = (absoluteRow - FirstVisibleRow) * RowHeight; // TODO: fix this highlight lagging behind on restart?
 
                         context.DrawRectangle(
-                            CurrentCellHighlight,
+                            Brushes.CurrentCellHighlight,
                             null,
                             new Rect(x, highlightY, ColumnWidth, RowHeight));
                     }
@@ -208,11 +159,11 @@ public class TrackerGrid : FrameworkElement
         if (IsPlaying)
         {
             context.DrawRectangle(
-                CurrentRowHighlight,
+                Brushes.CurrentRowHighlight,
                 null,
                 new Rect(
                     0,
-                    (CurrentRowPosition - _firstVisibleRow) * RowHeight, // TODO: play around with this to get scrolling right
+                    (CurrentRowPosition - FirstVisibleRow) * RowHeight,
                     4 * ColumnWidth, // TODO: change to generic channel count
                     RowHeight
                 ));
@@ -237,128 +188,10 @@ public class TrackerGrid : FrameworkElement
         return text;
     }
 
-    public string GetNoteText(int note)
+    public static string GetNoteText(int note)
     {
         if (note == -1) return "---";
-        return Engine.Tracker.CalculateMidiNote(note);
-    }
-
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        if (Patterns == null || Patterns.Count == 0) return;
-
-        int maxChannel = Patterns[0].Rows[0].Cells.Length - 1;
-
-        //int maxRow = Pattern.RowCount - 1;
-
-        switch (e.Key)
-        {
-            case Key.Up:
-                AdvanceRow(CurrentRow, CurrentRow - 1);
-                break;
-
-            case Key.Down:
-                AdvanceRow(CurrentRow, CurrentRow + 1);
-                break;
-
-            case Key.Left:
-                MoveLeft();
-                break;
-
-            case Key.Right:
-                MoveRight();
-                break;
-
-            case Key.Z:
-                Patterns[currentPatternIndex].Rows[currentRow].Cells[currentChannel].Note = 60;
-                SetNote(
-                    pattern: currentPatternIndex, // TODO: update to use current pattern
-                    row: currentRow,
-                    channel: currentChannel,
-                    note: 60, // TODO: update to map key press to MIDI value, not just C4
-                    instrument: 13 // TODO: update to use selected instrument
-                );
-                break;
-
-            case Key.X:
-                Patterns[currentPatternIndex].Rows[currentRow].Cells[currentChannel].Note = 63;
-                SetNote(
-                    pattern: currentPatternIndex, // TODO: update to use current pattern
-                    row: currentRow,
-                    channel: currentChannel,
-                    note: 63, // TODO: update to map key press to MIDI value, not just C4
-                    instrument: 13 // TODO: update to use selected instrument
-                );
-                break;
-
-            case Key.C:
-                Patterns[currentPatternIndex].Rows[currentRow].Cells[currentChannel].Note = 67;
-                SetNote(
-                    pattern: currentPatternIndex, // TODO: update to use current pattern
-                    row: currentRow,
-                    channel: currentChannel,
-                    note: 67, // TODO: update to map key press to MIDI value, not just C4
-                    instrument: 13 // TODO: update to use selected instrument
-                );
-                break;
-
-            case Key.Delete:
-            case Key.Back:
-                Patterns[currentPatternIndex].Rows[currentRow].Cells[currentChannel].Note = -1;
-                SetNote(
-                    pattern: currentPatternIndex, // TODO: update to use current pattern
-                    row: currentRow,
-                    channel: currentChannel,
-                    note: -1, // TODO: update to map key press to MIDI value, not just C4
-                    instrument: -1 // TODO: update to use selected instrument
-                );
-                break;
-
-            case Key.Enter:
-                StartPlayback();
-                if (!IsPlaying)
-                {
-                    SetVerticalScrollbarValue(0);
-                    currentRow = 0;
-                    _firstVisibleRow = 0;
-                }
-                break;
-        }
-
-        Focus();
-        InvalidateVisual();
-        e.Handled = true;
-    }
-
-    public event Action PlaybackStarted;
-
-    public void StartPlayback()
-    {
-        PlaybackStarted?.Invoke();
-        IsPlaying = !IsPlaying;
-    }
-
-    public event Action<double> VerticalScrollbarValueChanged;
-
-    public void SetVerticalScrollbarValue(double value)
-    {
-        VerticalScrollbarValueChanged?.Invoke(value);
-        VerticalScrollbarValue = value;
-    }
-
-    public event Action<double> HorizontalScrollbarValueChanged;
-
-    public void SetHorizontalScrollbarValue(double value)
-    {
-        HorizontalScrollbarValueChanged?.Invoke(value);
-        HorizontalScrollbarValue = value;
-    }
-
-    public event Action<int, int> AdvancedRow;
-
-    public void AdvanceRow(int cur, int next)
-    {
-        AdvancedRow?.Invoke(cur, next);
+        return TrackerEngine.CalculateMidiNote(note);
     }
 
     private string GetRowString(int absoluteRow)
@@ -380,12 +213,147 @@ public class TrackerGrid : FrameworkElement
         return rowStr.PadLeft(3, '0');
     }
 
-    private void SetNote(int pattern, int row, int channel, int note, int instrument)
+    private void PlaceNote(MidiNoteValueMap? note)
+    {
+        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentColumn].Note = (int)note;
+        SetNote(
+            pattern: currentPatternIndex, // TODO: update to use current pattern
+            row: PatternCurrentRow,
+            channel: CurrentColumn,
+            note: (int)note, // TODO: update to map key press to MIDI value, not just C4
+            bank: SelectedBank,
+            instrument: SelectedInstrument // TODO: update to use selected instrument
+        );
+        GlobalCurrentRow++;
+    }
+
+    private void DeleteNote(bool IsBackspace = false)
+    {
+        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentColumn].Note = -1;
+        SetNote(
+            pattern: currentPatternIndex,
+            row: PatternCurrentRow,
+            channel: CurrentColumn,
+            note: -1,
+            bank: -1,
+            instrument: -1
+        );
+
+        if (IsBackspace)
+            GlobalCurrentRow--;
+        else
+            GlobalCurrentRow++;
+    }
+
+    private void SetNote(int pattern, int row, int channel, int note, int bank, int instrument)
     {
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Channel = channel;
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Note = note;
+        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Bank = bank;
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Instrument = instrument;
     }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (Patterns == null || Patterns.Count == 0) return;
+
+        MidiNoteValueMap? note = GetMidiNote(e.Key);
+        if (note != null)
+            PlaceNote(note);
+        
+        switch (e.Key)
+        {
+            case Key.Up:
+                GlobalCurrentRow--;
+                break;
+
+            case Key.Down:
+                GlobalCurrentRow++;
+                break;
+
+            case Key.Left:
+                GlobalCurrentColumn--;
+                break;
+
+            case Key.Right:
+                GlobalCurrentColumn++;
+                break;
+
+            case Key.Delete:
+                DeleteNote();
+                break;
+
+            case Key.Back:
+                DeleteNote(IsBackspace: true);
+                break;
+
+            case Key.Enter:
+                StartPlayback();
+                if (!IsPlaying)
+                {
+                    SetVerticalScrollbarValue(0);
+                    SetCurrentRow(0);
+                    FirstVisibleRow = 0;
+                }
+                break;
+        }
+
+        Focus();
+        InvalidateVisual();
+        e.Handled = true;
+    }
+
+    // === EVENT HANDLING === //
+
+    public event Action PlaybackStarted;
+    public event Action InstrumentSelected;
+    public event Action BankSelected;
+    public event Action<double> VerticalScrollbarValueChanged;
+    public event Action<double> HorizontalScrollbarValueChanged;
+    public event Action<int, int> AdvancedRow;
+    public event Action<int, int> AdvancedColumn;
+    public event Action<int> RowChanged;
+    public event Action<int> ColumnChanged;
+
+    public void StartPlayback()
+    {
+        PlaybackStarted?.Invoke();
+        IsPlaying = !IsPlaying;
+    }
+
+    public void SelectInstrument(int value)
+    {
+        InstrumentSelected?.Invoke();
+        SelectedInstrument = value;
+    }
+
+    public void SelectBank(int value)
+    {
+        BankSelected?.Invoke();
+        SelectedBank = value;
+    }
+    public void SetVerticalScrollbarValue(double value)
+    {
+        VerticalScrollbarValueChanged?.Invoke(value);
+        VerticalScrollbarValue = value;
+    }
+    public void SetHorizontalScrollbarValue(double value)
+    {
+        HorizontalScrollbarValueChanged?.Invoke(value);
+        HorizontalScrollbarValue = value;
+    }
+    public void AdvanceRow(int cur, int next)
+    {
+        AdvancedRow?.Invoke(cur, next);
+    }
+    public void AdvanceColumn(int cur, int next)
+    {
+        AdvancedColumn?.Invoke(cur, next);
+    }
+
+    
+
+    
 
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
@@ -411,105 +379,102 @@ public class TrackerGrid : FrameworkElement
         //currentRow = 3;
         Focus(); // sets keyboard focus to this control
     }
-
-    public void MoveUp()
+    public int GlobalCurrentRow
     {
-        if (currentRow > 0)
+        get => CurrentRow;
+        set
         {
-            currentRow--;
-            VerticalScrollbarValue -= 1;
-            SetVerticalScrollbarValue(VerticalScrollbarValue);
-        }
-        else if (currentPatternIndex > 0)
-        {
-            // move to last row of previous pattern
-            currentPatternIndex--;
-            currentRow = Patterns[currentPatternIndex].RowCount - 1;
-        }
-    }
-
-    public void MoveDown()
-    {
-        if (currentRow < Patterns[currentPatternIndex].RowCount - 1)
-        {
-            currentRow++;
-        }
-        else
-        {
-            currentRow = 0;
-            if (currentPatternIndex < Patterns.Count - 1)
-            {
-                currentPatternIndex++;
-            }
-            else
-            {
-                currentPatternIndex = 0;
-                _firstVisibleRow = 0;
-                SetVerticalScrollbarValue(0);
+            if (CurrentRow == value)
                 return;
-            }
-        }
 
-        SetVerticalScrollbarValue(VerticalScrollbarValue + 1);
+            CurrentRow = WrapRow(value);
 
-        //currentRow++;
-        //VerticalScrollbarValue += 1;
-        //SetVerticalScrollbarValue(VerticalScrollbarValue);
-
-        //if (currentRow == Patterns[currentPatternIndex].RowCount)
-        //{
-        //    currentPatternIndex++;
-
-        //    if (currentPatternIndex == Patterns.Count)
-        //    {
-        //        currentRow = 0;
-        //        currentPatternIndex = 0;
-        //        _firstVisibleRow = 0;
-        //    }
-        //}
-
-
-
-        //Console.WriteLine($"Current Row: {currentRow}, Current Pattern: {currentPatternIndex}, Row Count: {Patterns[currentPatternIndex].RowCount}");
-        //if (currentRow < Patterns[currentPatternIndex].RowCount - 1)
-        //{
-        //    currentRow++;
-        //}
-        //else
-        //{
-        //    currentRow = 0;
-        //    if (currentPatternIndex < Patterns.Count - 1)
-        //    {
-        //        currentPatternIndex++;
-
-        //    }
-        //    else
-        //    {
-        //        currentPatternIndex = 0;
-        //    }
-        //}
-
-
-    }
-
-    public void MoveLeft()
-    {
-        if (currentChannel > 0)
-        {
-            currentChannel--;
-            HorizontalScrollbarValue -= 1;
-            SetHorizontalScrollbarValue(HorizontalScrollbarValue);
+            EnsureVisible();
+            InvalidateVisual();
+            RowChanged?.Invoke(CurrentRow);
         }
     }
 
-    public void MoveRight()
+    public int GlobalCurrentColumn
     {
-        Console.WriteLine(currentChannel + " " + Patterns[0].Rows[0].Cells.Length);
-        if (currentChannel < Patterns[0].Rows[0].Cells.Length - 1)
+        get => CurrentColumn;
+        set
         {
-            currentChannel++;
-            HorizontalScrollbarValue += 1;
-            SetHorizontalScrollbarValue(HorizontalScrollbarValue);
+            if (CurrentColumn == value)
+                return;
+
+            CurrentColumn = WrapColumn(value);
+
+            InvalidateVisual();
+            ColumnChanged?.Invoke(CurrentColumn);
         }
+    }
+
+    public void EnsureVisible()
+    {
+        if (CurrentRow < FirstVisibleRow)
+        {
+            FirstVisibleRow = CurrentRow;
+        }
+        else if (CurrentRow >= FirstVisibleRow + VisibleRowCount)
+        {
+            FirstVisibleRow = CurrentRow - VisibleRowCount + 1;
+        }
+    }
+
+    private int GetRowsInPreviousPattern(int index)
+    {
+        if (index == 0) return 0;
+        return Patterns[index-1].Rows.Length;
+    }
+
+    private int WrapRow(int row)
+    {
+        int rowsInCurrentPattern = Patterns[currentPatternIndex].Rows.Length;
+
+        if (row >= TotalRows)
+        {
+            RowOffset = 0;
+            currentPatternIndex = 0;
+            return 0;
+        }
+
+        if (row < 0)
+            return 0;
+
+        if (row - RowOffset == rowsInCurrentPattern)
+        {
+            RowOffset += rowsInCurrentPattern;
+            currentPatternIndex++;
+        }
+
+        if (row < RowOffset)
+        {
+            RowOffset -= GetRowsInPreviousPattern(currentPatternIndex);
+            currentPatternIndex--;
+        }
+
+        PatternCurrentRow = row - RowOffset;
+
+        return row;
+    }
+
+    private static int WrapColumn(int column)
+    {
+       if (column > 3) // TODO: change to generic number of channels
+            return 3;
+
+        if (column < 0)
+            return 0;
+            
+       return column;
+    }
+
+    public MidiNoteValueMap? GetMidiNote(Key key)
+    {
+        if (KeyboardToMidiNote.Map.TryGetValue(key, out var note))
+            return note;
+
+        return null;
     }
 }
