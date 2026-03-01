@@ -1,20 +1,15 @@
 ﻿using sfTracker.Audio;
+using sfTracker.GUI;
 using sfTracker.Playback;
+using sfTracker.Tracker;
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Shapes;
-using System.Windows.Threading;
 
 namespace sfTracker
 {
@@ -22,24 +17,37 @@ namespace sfTracker
     {
         private SynthEngine engine;
         private readonly Stopwatch playbackClock = new();
-        private readonly int defaultBPM = 140;
+        private readonly MainViewModel vm;
+        private readonly int defaultBPM = 120;
+        private int totalRowCount = 0;
+        private int currentColumn = 0;
+        private bool isPlaybackScrolling = false;
         public double currentRowPosition;
         public bool IsPlaying = false;
-        private int totalRowCount = 0;
-        private int currentRow = 0;
-        private int currentColumn = 0;
-        private bool preventScrollbarEvent;
+        public int currentlyPlayingNote;
 
         public MainWindow()
         {
             InitializeComponent();
+            vm = new MainViewModel();
+            DataContext = vm;
+
             InitialiseTracker(
                 soundFont: "Kirby's_Dream_Land_3.sf2",
-                patterns: [new Pattern(rowCount: 32, channels: 4), new Pattern(rowCount: 32, channels: 4)],
+                patterns: [new Pattern(rowCount: 64, channels: 4), new Pattern(rowCount: 64, channels: 4)],
                 BPM: defaultBPM
             );
+
             VerticalScrollBar.Maximum = totalRowCount;
             HorizontalScrollBar.Maximum = 3; // TODO: make this the number of channels
+
+            //this.KeyDown += new System.Windows.Input.KeyEventHandler(OnKeyPress);
+            //this.KeyUp += new System.Windows.Input.KeyEventHandler(OnKeyRelease);
+        }
+
+        private void LoadSoundFont(string path)
+        {
+            vm.LoadSoundFont(path);
         }
 
         private void InitialiseTracker(string soundFont, Pattern[] patterns, int BPM)
@@ -59,6 +67,7 @@ namespace sfTracker
             for (int i = 0; i < Tracker.Patterns.Count; i++)
                 totalRowCount += Tracker.Patterns[i].RowCount;
 
+            LoadSoundFont(soundFont);
             EnableEventListeners();
             Console.WriteLine("Tracker initialized!");
         }
@@ -69,7 +78,9 @@ namespace sfTracker
             Tracker.PlaybackStarted -= StartPlayback;
             Tracker.VerticalScrollbarValueChanged -= SetVerticalScrollbarValue;
             Tracker.HorizontalScrollbarValueChanged -= SetHorizontalScrollbarValue;
-            Tracker.AdvancedRow -= AdvanceRow;
+            Tracker.RowChanged -= Tracker_RowChanged;
+            Tracker.ColumnChanged -= Tracker_ColumnChanged;
+            vm.PropertyChanged -= InstrumentChanged;
         }
 
         private void EnableEventListeners()
@@ -78,12 +89,18 @@ namespace sfTracker
             Tracker.PlaybackStarted += StartPlayback;
             Tracker.VerticalScrollbarValueChanged += SetVerticalScrollbarValue;
             Tracker.HorizontalScrollbarValueChanged += SetHorizontalScrollbarValue;
-            Tracker.AdvancedRow += AdvanceRow;
+            Tracker.RowChanged += Tracker_RowChanged;
+            Tracker.ColumnChanged += Tracker_ColumnChanged;
+            vm.PropertyChanged += InstrumentChanged;
         }
 
-        public void StartRendering()
+        private void InstrumentChanged(object sender, PropertyChangedEventArgs e)
         {
-            CompositionTarget.Rendering += OnFrame;
+            if (vm.SelectedPreset != null)
+            {
+                Tracker.SelectInstrument(vm.SelectedPreset.Instrument);
+                Tracker.SelectBank(vm.SelectedPreset.Bank);
+            }
         }
 
         private void OnFrame(object sender, EventArgs e)
@@ -96,29 +113,10 @@ namespace sfTracker
 
             SetVerticalScrollbarValue(Tracker.CurrentRowPosition);
 
+            Tracker.GlobalCurrentRow = (int)Tracker.CurrentRowPosition;
+
             InvalidateVisual();
         }
-
-        //private void Button_Click(object sender, RoutedEventArgs e)
-        //{
-        //    engine.Start();
-
-        //    if (!IsPlaying)
-        //    {
-        //        IsPlaying = true;
-        //        playbackClock.Restart();
-        //        CompositionTarget.Rendering += OnFrame;
-        //    }
-        //    else
-        //    {
-        //        IsPlaying = false;
-        //        playbackClock.Stop();
-        //        CompositionTarget.Rendering -= OnFrame;
-        //    }
-
-        //    InvalidateVisual();
-        //    Console.WriteLine("Tracker started!");
-        //}
 
         public void StartPlayback()
         {
@@ -126,10 +124,14 @@ namespace sfTracker
 
             if (!IsPlaying)
             {
-                //currentRow = 0;
-                //SetVerticalScrollbarValue(0);
-                //Tracker._firstVisibleRow = 0;
                 IsPlaying = true;
+                isPlaybackScrolling = true;
+                
+                Tracker.PatternCurrentRow = 0;
+                Tracker.FirstVisibleRow = 0;
+                VerticalScrollBar.Value = 0;
+                isPlaybackScrolling = false;
+
                 playbackClock.Restart();
                 CompositionTarget.Rendering += OnFrame;
             }
@@ -137,151 +139,231 @@ namespace sfTracker
             {
                 IsPlaying = false;
                 playbackClock.Stop();
-                currentRow = 0;
-                SetVerticalScrollbarValue(0);
-                Tracker._firstVisibleRow = 0;
+                isPlaybackScrolling = true;
+
+                Tracker.PatternCurrentRow = 0;
+                Tracker.SetCurrentRow(0);
+
+                isPlaybackScrolling = false;
+
                 CompositionTarget.Rendering -= OnFrame;
             }
 
             InvalidateVisual();
-            Console.WriteLine("Tracker started!");
+            //Console.WriteLine("Tracker started!");
         }
 
         public void SetVerticalScrollbarValue(double value)
         {
-            preventScrollbarEvent = true;
             VerticalScrollBar.Value = value;
-            preventScrollbarEvent = false;
+            Tracker.EnsureVisible();
         }
 
         public void SetHorizontalScrollbarValue(double value)
         {
-            preventScrollbarEvent = true;
             HorizontalScrollBar.Value = value;
-            preventScrollbarEvent = false;
         }
 
         private void Grid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (IsPlaying) return;
 
-            if (e.Delta > 0)
-            {
-                Tracker.MoveUp();
-                SetVerticalScrollbarValue(VerticalScrollBar.Value - VerticalScrollBar.SmallChange);
+            double change = e.Delta;
 
-                Tracker._firstVisibleRow -= 1;
-            }
-            else if (e.Delta < 0)
+            if (change < 0)
             {
-                Tracker.MoveDown();
                 SetVerticalScrollbarValue(VerticalScrollBar.Value + VerticalScrollBar.SmallChange);
-
-                if (VerticalScrollBar.Value > totalRowCount)
-                {
-                    SetVerticalScrollbarValue(0);
-                    Tracker._firstVisibleRow = 0;
-                    return;
-                }
-
-                if (!IsPlaying && Tracker.currentPatternIndex == 0 && Tracker.currentRow < 8)
-                    return;
-                        
-                Tracker._firstVisibleRow += 1;
+                Tracker.GlobalCurrentRow++;
             }
-
-            if (Tracker._firstVisibleRow < 0)
-                Tracker._firstVisibleRow = 0;
-
-            if (Tracker._firstVisibleRow > totalRowCount - Tracker.VisibleRowCount)
-                Tracker._firstVisibleRow = totalRowCount - Tracker.VisibleRowCount;
+            else if (change > 0)
+            {
+                SetVerticalScrollbarValue(VerticalScrollBar.Value - VerticalScrollBar.SmallChange);
+                Tracker.GlobalCurrentRow--;
+            }
         }
+
+        //private void AdvanceRow(int prevRow, int currentRow)
+        //{
+        //    if (currentRow == totalRowCount)
+        //    {
+        //        Tracker._firstVisibleRow = 0;
+        //        VerticalScrollBar.Value = 0;
+        //        Tracker.InvalidateVisual();
+        //        return;
+        //    }
+
+        //    if (currentRow == prevRow)
+        //        return;
+
+        //    //Console.WriteLine($"Curr: {currentRow}, Prev: {prevRow}");
+        //    int difference = currentRow - prevRow;
+
+
+        //    if (difference > 0)
+        //    {
+        //        if (difference > 0)
+        //        {
+        //            for (int i = 0; i < difference; i++)
+        //                Tracker.MoveDown();
+        //        }
+        //        else
+        //        {
+        //            for (int i = 0; i < Math.Abs(difference); i++)
+        //                Tracker.MoveUp();
+        //        }
+
+        //        //EnsureCursorVisible();
+        //        Tracker.InvalidateVisual();
+        //    }
+        //    else
+        //    {
+        //        for (int i = 0; i < Math.Abs(difference); i++)
+        //        {
+        //            Tracker.MoveUp();
+        //            Tracker._firstVisibleRow--;
+        //        }
+        //    }
+
+        //    if (Tracker._firstVisibleRow < 0)
+        //        Tracker._firstVisibleRow = 0;
+
+        //    if (Tracker._firstVisibleRow > totalRowCount - Tracker.VisibleRowCount)
+        //        Tracker._firstVisibleRow = totalRowCount - Tracker.VisibleRowCount;
+
+        //    Tracker.Focus();
+        //}
+
+        private void Tracker_RowChanged(int newRow)
+        {
+            _internalScrollChange = true;
+            VerticalScrollBar.Value = newRow;
+            _internalScrollChange = false;
+        }
+
+        private void Tracker_ColumnChanged(int newColumn)
+        {
+            _internalScrollChange = true;
+            HorizontalScrollBar.Value = newColumn;
+            _internalScrollChange = false;
+        }
+
+        //private void VerticalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        //{
+        //    //if (isPlaybackScrolling)
+        //    //    return;
+
+        //    //int prevRow = Tracker.GetCurrentGlobalRow();
+        //    //int currentRow = (int)e.NewValue;
+
+        //    //AdvanceRow(prevRow, currentRow);
+        //    //int newValue = (int)e.NewValue;
+        //    //Console.WriteLine((int)e.NewValue);
+        //    //if (newValue == totalRowCount)
+        //    //    Tracker._firstVisibleRow = 0;
+        //    //else
+        //    //    Tracker._firstVisibleRow = (int)e.NewValue;
+
+        //    //Tracker.InvalidateVisual();
+        //    //Tracker.Focus();
+
+        //    //int value = (int)e.NewValue;
+
+        //    //if (value == totalRowCount)
+        //    //{
+        //    //    WrapToTop();
+        //    //    return;
+        //    //}
+
+        //    //Tracker._firstVisibleRow = value;
+        //    //Tracker.InvalidateVisual();
+
+        //    if (_internalScrollChange)
+        //        return;
+
+        //    int targetRow = (int)e.NewValue;
+        //    int difference = targetRow - Tracker.currentRow;
+
+        //    if (difference > 0)
+        //    {
+        //        for (int i = 0; i < difference; i++)
+        //            Tracker.MoveDown();
+        //            EnsureCursorVisible();
+        //            InvalidateVisual();
+        //    }
+        //    else if (difference < 0)
+        //    {
+        //        for (int i = 0; i < Math.Abs(difference); i++)
+        //            Tracker.MoveUp();
+        //            EnsureCursorVisible();
+        //            InvalidateVisual();
+        //    }
+
+        //    Tracker.Focus();
+        //}
 
         private void VerticalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (!IsPlaying && preventScrollbarEvent)
-                return;
-
-            int prevRow = currentRow;
-            currentRow = (int)e.NewValue;
-
-            Console.WriteLine(prevRow + " " + currentRow);
-
-            AdvanceRow(prevRow, currentRow);
-        }
-
-        private void HorizontalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (!IsPlaying && preventScrollbarEvent)
-                return;
-
-            Console.WriteLine(e.NewValue);
-            int prevColumn = currentColumn;
-            currentColumn = (int)Math.Round(e.NewValue);
-
-            AdvanceColumn(prevColumn, currentColumn);
-        }
-
-        private void AdvanceRow(int prevRow, int currentRow) //TODO: fix behaviour, currently works fine until scrolled with mouse, then reverses logic??
-            {
-
-            Console.WriteLine(prevRow + " " + currentRow);
-
-            if (currentRow == totalRowCount)
-            {
-                return;
-            }
-
-            if (Math.Abs(prevRow - currentRow) > 1) // TODO: fix moving down scroll then pressing play, not resetting properly
-            {
-                preventScrollbarEvent = true;
-                SetVerticalScrollbarValue(0);
-                Tracker._firstVisibleRow = 0;
-                return;
-            }
-
-            if (prevRow == totalRowCount - 1 && currentRow == 0)
-            {
-                Tracker.MoveDown();
-                Tracker._firstVisibleRow = 0;
-                return;
-            }
-
-            if (prevRow > currentRow)
-            {
-                Tracker.MoveUp();
-                Tracker._firstVisibleRow -= 1;
-            }
-            else if (prevRow < currentRow)
-            {
-                Tracker.MoveDown();
-
-                if (!IsPlaying && Tracker.currentPatternIndex == 0 && Tracker.currentRow < 8)
-                    return;
-
-                Tracker._firstVisibleRow += 1;
-            }
-
-            if (Tracker._firstVisibleRow < 0)
-                Tracker._firstVisibleRow = 0;
-
-            if (Tracker._firstVisibleRow > totalRowCount - Tracker.VisibleRowCount)
-                Tracker._firstVisibleRow = totalRowCount - Tracker.VisibleRowCount;
-
+            Tracker.GlobalCurrentRow = (int)e.NewValue;
             Tracker.Focus();
         }
 
-        private void AdvanceColumn(int prevColumn, int currentColumn)
+        private bool _internalScrollChange = false;
+
+        private void HorizontalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (prevColumn < currentColumn)
-            {
-                Tracker.MoveRight();
-            }
-            else if (prevColumn > currentColumn)
-            {
-                Tracker.MoveLeft();
-            }
+            //if (isPlaybackScrolling)
+            //    return;
+
+            Tracker.GlobalCurrentColumn = (int)e.NewValue;
+            Tracker.Focus();
+
+            //int prevColumn = Tracker.CurrentChannel;
+            //int currentColumn = (int)Math.Round(e.NewValue);
+
+            //AdvanceColumn(prevColumn, currentColumn);
         }
+
+        //private void AdvanceColumn(int prevColumn, int currentColumn)
+        //{
+        //    Console.WriteLine($"Prev: {prevColumn}, Curr: {currentColumn}");
+
+        //    if (currentColumn == 0 || currentColumn == 4)
+        //    {
+        //        return;
+        //    }
+
+        //    if (currentColumn == prevColumn)
+        //        return;
+
+        //    //Console.WriteLine($"Curr: {currentRow}, Prev: {prevRow}");
+        //    int difference = currentColumn - prevColumn;
+
+        //    if (difference > 0)
+        //    {
+        //        for (int i = 0; i < difference; i++)
+        //        {
+        //            Tracker.MoveRight();
+        //        }
+        //    }
+        //    else
+        //    {
+        //        for (int i = 0; i < Math.Abs(difference); i++)
+        //        {
+        //            Tracker.MoveLeft();
+        //        }
+        //    }
+
+        //    Tracker.Focus();
+        //    //if (prevColumn < currentColumn)
+        //    //{
+        //    //    Tracker.MoveRight();
+        //    //}
+        //    //else if (prevColumn > currentColumn)
+        //    //{
+        //    //    Tracker.MoveLeft();
+        //    //}
+        //    //Tracker.Focus();
+        //}
 
         // https://youtu.be/Heq8qve1Vts
         private void Button_OpenSF2(object sender, RoutedEventArgs e)
@@ -299,43 +381,55 @@ namespace sfTracker
             {
                 string fileName = dialog.FileName;
                 string soundFontName = fileName[(fileName.LastIndexOf('\\') + 1)..];
-                SelectedSoundFont.Text = $"{soundFontName}"; // TODO: figure out how to style
-                Console.WriteLine($"{soundFontName}, {engine.Tracker.Patterns}, {defaultBPM}");
+                SelectedSoundFont.Text = $"{soundFontName}";
+                //Console.WriteLine($"{soundFontName}, {engine.Tracker.Patterns}, {defaultBPM}");
                 InitialiseTracker(soundFontName, engine.Tracker.Patterns, defaultBPM);
             }
         }
 
-        //// Detect when the mouse is over the grid and continuously allow scrolling
-        //private void Grid_PreviewMouseMove(object sender, MouseEventArgs e)
+        private void ListBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key >= Key.A && e.Key <= Key.Z) // prevent key presses moving focus in the preset select window
+                e.Handled = true;
+        }
+
+        //TODO: try to get this to work properly if i have time
+
+        //private void OnKeyPress(object sender, System.Windows.Input.KeyEventArgs e)
         //{
-        //    // Ensure the mouse is still inside the grid
-        //    var position = e.GetPosition(this);
+        //    Console.WriteLine($"note: {Tracker.GetMidiNote(e.Key)}");
+        //    if (Tracker.GetMidiNote(e.Key) == null) { return; }
 
-        //    var gridPosition = Tracker.TransformToAncestor(this).Transform(new Point(0, 0));
+        //    if ((int)Tracker.GetMidiNote(e.Key) == currentlyPlayingNote ) { return; } 
 
-        //    var gridWidth = Tracker.ActualWidth;
-        //    var gridHeight = Tracker.ActualHeight;
-
-        //    // Calculate the boundaries of the grid
-
-        //    double gridLeft = gridPosition.X;
-        //    double gridTop = gridPosition.Y;
-        //    double gridRight = gridLeft + gridWidth;
-        //    double gridBottom = gridTop + gridHeight;
-
-        //    if (position.X >= gridLeft && position.X <= gridRight && position.Y >= gridTop && position.Y <= gridBottom)
+        //    if (e.Key != Key.Enter)
         //    {
-        //        // If the mouse is within the grid, continue allowing scroll
-        //        if (!Tracker.IsMouseCaptured)
-        //        {
-        //            Tracker.CaptureMouse();  // Ensure the mouse is captured while inside the grid
-        //        }
+        //        Console.WriteLine("ojisdfgjiogsd");
+        //        engine.Start();
+        //        engine.Tracker.TriggerNoteWithKeyboard(
+        //            Tracker.CurrentColumn,
+        //            (int)Tracker.GetMidiNote(e.Key),
+        //            vm.SelectedPreset.Bank,
+        //            vm.SelectedPreset.Instrument,
+        //            100,
+        //            trigger: true
+        //        );
+
+        //        currentlyPlayingNote = (int)Tracker.GetMidiNote(e.Key);
         //    }
-        //    else
-        //    {
-        //        // If the mouse is outside the grid, stop capturing the mouse
-        //        Tracker.ReleaseMouseCapture();
-        //    }
+        //}
+
+        //private void OnKeyRelease(object sender, System.Windows.Input.KeyEventArgs e)
+        //{
+        //    engine.StopAudio();
+        //    engine.Tracker.TriggerNoteWithKeyboard(
+        //        Tracker.CurrentColumn,
+        //        currentlyPlayingNote,
+        //        -1,
+        //        -1,
+        //        100
+        //    );
+        //    currentlyPlayingNote = -1;
         //}
     }
 }
