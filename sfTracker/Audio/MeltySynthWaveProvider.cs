@@ -13,13 +13,31 @@ namespace sfTracker.Audio
         private readonly Synthesizer synthesizer = synthesizer;
         private readonly TrackerEngine tracker = tracker;
         private readonly WaveFormat waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, 2); // instantiate PCM for audio playback
+        private volatile bool isPlaying;
 
         private float[] floatBuffer = [];
+
+        public void Start()
+        {
+            isPlaying = true;
+        }
+
+        public void Stop()
+        {
+            isPlaying = false;
+        }
 
         public WaveFormat WaveFormat => waveFormat;
 
         public int Read(byte[] buffer, int offset, int count)
         {
+            // if audio isn't playing, clear the buffer
+            if (!isPlaying)
+            {
+                Array.Clear(buffer, offset, count);
+                return count;
+            }
+
             // calculate how many samples are required to render
             // count is the total number of bytes requested to render
             // this must be converted to float samples so

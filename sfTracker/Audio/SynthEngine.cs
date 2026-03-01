@@ -1,8 +1,8 @@
 ﻿using MeltySynth;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using sfTracker.Tracker;
 using System;
-using System.Threading.Tasks;
 
 namespace sfTracker.Audio
 {
@@ -14,7 +14,7 @@ namespace sfTracker.Audio
         private Synthesizer synthesizer;
         private readonly TrackerEngine tracker;
         private readonly MeltySynthWaveProvider waveProvider;
-        private readonly WaveOutEvent output;
+        private readonly WasapiOut output;
         private bool isPlayingAudio;
         public TrackerEngine Tracker => tracker;
 
@@ -22,13 +22,16 @@ namespace sfTracker.Audio
         {
             // initialise SoundFont handler, tracker and WaveProvider
             synthesizer = new Synthesizer(new SoundFont(soundFontPath), sampleRate);
+            //synthesizer.MasterVolume = 1.5f; // TODO: implement master volume slider or something so the volume can be louder
             tracker = new TrackerEngine(synthesizer, sampleRate);
             waveProvider = new MeltySynthWaveProvider(synthesizer, tracker, sampleRate);
 
-            Console.WriteLine($"{soundFontPath} - output: {output}");
+            //Console.WriteLine($"{soundFontPath} - output: {output}");
             // initialise NAudio output
-            output = new WaveOutEvent();
+            //output = new WaveOutEvent();
+            output = new WasapiOut(AudioClientShareMode.Shared, true, 5);
             output.Init(waveProvider);
+            output.Play();
             isPlayingAudio = false;
         }
 
@@ -54,8 +57,8 @@ namespace sfTracker.Audio
         /// </summary>
         public void PlayAudio()
         {
-            Console.WriteLine("Playing audio");
-            output.Play(); // start playing audio
+            //Console.WriteLine("Playing audio");
+            waveProvider.Start();
             isPlayingAudio = true;
         }
 
@@ -64,9 +67,9 @@ namespace sfTracker.Audio
         /// </summary>
         public void StopAudio()
         {
-            Console.WriteLine("Stopping audio");
-            output.Stop(); // stop playing audio
+            //Console.WriteLine("Stopping audio");
             StopActiveNotes(); // Ensure that all notes are properly turned off when stopping the audio
+            waveProvider.Stop();
             isPlayingAudio = false;
         }
 
@@ -81,7 +84,7 @@ namespace sfTracker.Audio
             tracker.CurrentTick = 0;  // reset tick counter
             tracker.tickSampleCounter = 0;  // reset sample counter
 
-            output.Stop();
+            //output.Stop();
             synthesizer.Reset(); // reset MeltySynth Synthesizer
         }
 
