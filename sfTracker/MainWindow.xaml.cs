@@ -160,6 +160,7 @@ namespace sfTracker
             }
 
             totalRowCount = currentRow;
+            Tracker.TotalRowCount = totalRowCount;
         }
 
         public void StartPlayback(int currentPattern)
@@ -255,7 +256,7 @@ namespace sfTracker
             Tracker.Focus();
         }
 
-        private void HorizontalScrollBar_VaueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        private void HorizontalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             // TODO: clean this up, not really working that well
             if (!IsClickingCell)

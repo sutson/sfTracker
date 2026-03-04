@@ -49,6 +49,7 @@ public class TrackerGrid : FrameworkElement
     public double ColumnWidth;
 
     public SynthEngine Engine { get; set; }
+    public int VisibleRowCount => (int)(ActualHeight / RowHeight) + 1;
 
     public TrackerGrid()
     {
@@ -101,10 +102,6 @@ public class TrackerGrid : FrameworkElement
         CurrentRowPosition = row;
         InvalidateVisual();
     }
-
-    // Total number of rows
-    public int TotalRows { get; set; } = 128; // TODO: update to calculate on init
-    public int VisibleRowCount => (int)(ActualHeight / RowHeight) + 1;
 
     protected override void OnRender(DrawingContext context)
     {
@@ -637,7 +634,7 @@ public class TrackerGrid : FrameworkElement
         e.Handled = true;
     }
 
-    private bool IsKeyDigit(Key key)
+    private static bool IsKeyDigit(Key key)
     {
         return (key >= Key.D0 && key <= Key.D9) || (key >= Key.NumPad0 && key <= Key.NumPad9); // numpad digits
     }
@@ -769,7 +766,7 @@ public class TrackerGrid : FrameworkElement
     {
         int rowsInCurrentPattern = Patterns[currentPatternIndex].Rows.Length;
 
-        if (row >= TotalRows)
+        if (row >= TotalRowCount)
         {
             RowOffset = 0;
             currentPatternIndex = 0;
