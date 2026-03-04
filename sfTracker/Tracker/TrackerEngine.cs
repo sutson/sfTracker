@@ -71,7 +71,6 @@ namespace sfTracker.Tracker
             {
                 CurrentVolumes[channel] = ProgramConstants.MaxVolume;
                 TargetVolumes[channel] = ProgramConstants.MaxVolume;
-                SetVolume(channel, ProgramConstants.MaxVolume);
             }
         }
 
@@ -142,7 +141,10 @@ namespace sfTracker.Tracker
             Voice voice = ActiveVoices[channel]; // get active voice for current channel (column)
 
             if (voice == null) // if no voice active in this channel
-                HandleNoteTrigger(channel, note, bank, instrument, velocity);
+            {
+                voice = new Voice(-1, -1, -1, -1); // hack to get the first note to play at full volume
+                HandleNoteTrigger(channel, note, bank, instrument, velocity, voice);
+            }
             else
                 HandleNoteTrigger(channel, note, bank, instrument, velocity, voice);
 
@@ -152,17 +154,24 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to handle note being triggered. If an active voice exists, it is stopped here.
         /// </summary>
-        private void HandleNoteTrigger(int channel, int note, int bank, int instrument, int velocity, Voice voice = null)
+        private void HandleNoteTrigger(int channel, int note, int bank, int instrument, int velocity, Voice voice)
         {
             // if voice exists, turn it off
             // also if voice exists and stop note is present, turn off active voice
             if (voice != null || (voice != null && note == ProgramConstants.StopNote))
-                NoteOff(channel, voice.Note);
+            {
+                if (note == voice.Note) { return; }; // don't retrigger if the same note is already playing
 
-            // play new note, note that velocity must be scaled from the tracker display to the range that MIDI supports (0-127)
+                NoteOff(channel, voice.Note);
+                SetBank(channel, bank);
+                SetInstrument(channel, instrument);
+                NoteOn(channel, note, velocity);
+            }
+
+            // play note
             SetBank(channel, bank);
             SetInstrument(channel, instrument);
-            NoteOn(channel, note, (int)(velocity * ProgramConstants.MaxVolume / ProgramConstants.MaxDisplayVolume));
+            NoteOn(channel, note, velocity);
         }
 
         /// <summary>
@@ -178,10 +187,12 @@ namespace sfTracker.Tracker
             // trigger each cell in the row
             foreach (var cell in row.Cells)
             {
-                if (cell.Velocity >= 0)
-                    TargetVolumes[cell.Channel] = cell.Velocity;
+                int scaledVelocity = (int)(cell.Velocity * ProgramConstants.MaxVolume / ProgramConstants.MaxDisplayVolume);
+
+                if (scaledVelocity >= 0)
+                    TargetVolumes[cell.Channel] = scaledVelocity;
                 if (cell.Note >= 0 || cell.Note == ProgramConstants.StopNote)
-                    TriggerNote(cell.Channel, cell.Note, cell.Bank, cell.Instrument, cell.Velocity);
+                    TriggerNote(cell.Channel, cell.Note, cell.Bank, cell.Instrument, scaledVelocity);
 
                 // TODO: effect parsing
             }

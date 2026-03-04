@@ -389,6 +389,8 @@ public class TrackerGrid : FrameworkElement
 
     private void ChangeNoteInstrument(int digitIndex, int newValue)
     {
+        if (Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; };
+
         int instrumentID = Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID;
         int updatedInstrumentID = UpdateNumberValue(
             instrumentID == -1 ? "000" : instrumentID.ToString().PadLeft(3, '0'),
@@ -406,6 +408,8 @@ public class TrackerGrid : FrameworkElement
 
     private void ChangeNoteVolume(int digitIndex, int newValue)
     {
+        if (Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; };
+
         int volume = Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity;
         int updatedVolume = UpdateNumberValue(
             volume == -1 ? "00" : volume.ToString().PadLeft(2, '0'),
