@@ -400,23 +400,23 @@
         <Grid Background="Transparent"  PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="1">
             <Border BorderThickness="1" Height="1" BorderBrush="White" Grid.Row="1"/>
 
-            <Line Style="{StaticResource VerticalLineTop}" X1="10" X2="10"/>
+            <!--<Line Style="{StaticResource VerticalLineTop}" X1="10" X2="10"/>
             <Line Style="{StaticResource VerticalLineTop}" X1="50" X2="50"/>
             <Line Style="{StaticResource VerticalLineTop}" X1="170" X2="170"/>
             <Line Style="{StaticResource VerticalLineTop}" X1="290" X2="290"/>
             <Line Style="{StaticResource VerticalLineTop}" X1="410" X2="410"/>
-            <Line Style="{StaticResource VerticalLineTop}" X1="530" X2="530"/>
+            <Line Style="{StaticResource VerticalLineTop}" X1="530" X2="530"/>-->
         </Grid>
 
-        <Line Style="{StaticResource VerticalLineMiddle}" X1="10" X2="10"/>
+        <!--<Line Style="{StaticResource VerticalLineMiddle}" X1="10" X2="10"/>
         <Line Style="{StaticResource VerticalLineMiddle}" X1="50" X2="50"/>
         <Line Style="{StaticResource VerticalLineMiddle}" X1="170" X2="170"/>
         <Line Style="{StaticResource VerticalLineMiddle}" X1="290" X2="290"/>
         <Line Style="{StaticResource VerticalLineMiddle}" X1="410" X2="410"/>
-        <Line Style="{StaticResource VerticalLineMiddle}" X1="530" X2="530"/>
+        <Line Style="{StaticResource VerticalLineMiddle}" X1="530" X2="530"/>-->
 
         <!-- container for tracker grid and vertical slider -->
-        <Grid Background="Transparent"  PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="2">
+        <Grid Background="Transparent" MouseLeftButtonDown="Tracker_MouseLeftButtonDown" PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <!-- tracker part -->
@@ -424,12 +424,12 @@
                 <!-- scroll bar part -->
             </Grid.ColumnDefinitions>
 
-            <Line Style="{StaticResource VerticalLineBottom}" X1="10" X2="10"/>
+            <!--<Line Style="{StaticResource VerticalLineBottom}" X1="10" X2="10"/>
             <Line Style="{StaticResource VerticalLineBottom}" X1="50" X2="50"/>
             <Line Style="{StaticResource VerticalLineBottom}" X1="170" X2="170"/>
             <Line Style="{StaticResource VerticalLineBottom}" X1="290" X2="290"/>
             <Line Style="{StaticResource VerticalLineBottom}" X1="410" X2="410"/>
-            <Line Style="{StaticResource VerticalLineBottom}" X1="530" X2="530"/>
+            <Line Style="{StaticResource VerticalLineBottom}" X1="530" X2="530"/>-->
 
             <!-- TrackerGrid aligned left -->
             <local:TrackerGrid x:Name="Tracker"
@@ -437,6 +437,7 @@
                                HorizontalAlignment="Left"
                                VerticalAlignment="Stretch"
                                Margin="50 200 0 200"
+                               
                                />
 
             <!-- Slider aligned right -->
@@ -447,6 +448,7 @@
                 Margin="0 0 10 10"
                 Minimum="0"
                 SmallChange="1"
+                LargeChange="1"
                 TickFrequency="1"
                 IsSnapToTickEnabled="True"
                 ValueChanged="VerticalScrollBar_ValueChanged"
@@ -464,9 +466,8 @@
             <Slider
                 x:Name="HorizontalScrollBar"
                 Minimum="0"
-                Maximum="100"
-                TickFrequency="1"
                 IsSnapToTickEnabled="True"
+                IsMoveToPointEnabled="False"
                 Height="20"
                 ValueChanged="HorizontalScrollBar_ValueChanged"
                 Template="{StaticResource HorizontalSliderTemplate}"

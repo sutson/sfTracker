@@ -1,9 +1,15 @@
-﻿using sfTracker.Audio;
+﻿using MeltySynth;
+using sfTracker.Audio;
 using sfTracker.GUI;
 using sfTracker.Playback;
+using sfTracker.Tracker;
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
+using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
@@ -17,8 +23,15 @@ namespace sfTracker
         private readonly Stopwatch playbackClock = new();
         private readonly MainViewModel vm;
         private readonly int defaultBPM = 120;
-        private bool IsPlaybackScrolling = false;
+        private bool isPlaybackScrolling = false;
         private int totalRowCount = 0;
+        private bool internalScrollChange = false;
+        private double lastHorizontalScrollValue;
+        private int defaultChannelCount = 4;
+        private int defaultRowCount = 32;
+        private double resumePlaybackRow = 0;
+        private List<PatternBoundary> patternBoundaries = [];
+        private bool IsClickingCell = false;
 
         public double currentRowPosition;
         public bool IsPlaying = false;
@@ -32,12 +45,15 @@ namespace sfTracker
 
             InitialiseTracker(
                 soundFont: "Kirby's_Dream_Land_3.sf2",
-                patterns: [new Pattern(rowCount: 64, channels: 4), new Pattern(rowCount: 64, channels: 4)],
+                patterns: [
+                    new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount),
+                    new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount)
+                ],
                 BPM: defaultBPM
             );
 
-            VerticalScrollBar.Maximum = totalRowCount;
-            HorizontalScrollBar.Maximum = 3; // TODO: make this the number of channels
+            VerticalScrollBar.Maximum = totalRowCount - 1;
+            HorizontalScrollBar.Maximum = Tracker.ChannelCount * Tracker.ColumnsPerChannel - 1;
 
             //this.KeyDown += new System.Windows.Input.KeyEventHandler(OnKeyPress);
             //this.KeyUp += new System.Windows.Input.KeyEventHandler(OnKeyRelease);
@@ -45,27 +61,34 @@ namespace sfTracker
 
         private void LoadSoundFont(string path)
         {
-            vm.LoadSoundFont(path);
+            ObservableCollection<SoundFontPreset> presets = vm.LoadSoundFont(path);
+            Tracker.PresetList = presets;
         }
 
         private void InitialiseTracker(string soundFont, Pattern[] patterns, int BPM)
         {
-            engine?.ResetTracker();
+            engine?.ResetTracker(0);
             engine?.Dispose();
             DisableEventListeners();
 
             engine = new SynthEngine(soundFont);
             engine.Tracker.Patterns = patterns;
+            engine.Tracker.ActiveVoices = new Voice[defaultChannelCount];
+            engine.Tracker.CurrentVolumes = new int[defaultChannelCount];
+            engine.Tracker.TargetVolumes = new int[defaultChannelCount];
             engine.Tracker.SetBPM(BPM);
-
+            
             Tracker.Patterns = engine.Tracker.Patterns;
             Tracker.Engine = engine;
             Tracker.Focus();
 
-            for (int i = 0; i < Tracker.Patterns.Count; i++)
-                totalRowCount += Tracker.Patterns[i].RowCount;
+            //for (int i = 0; i < Tracker.Patterns.Count; i++)
+            //    totalRowCount += Tracker.Patterns[i].RowCount;
+
+            ComputePatternBoundaries();
 
             LoadSoundFont(soundFont);
+            SelectedSoundFont.Text = $"{soundFont}";
             EnableEventListeners();
             Console.WriteLine("Tracker initialized!");
         }
@@ -96,7 +119,7 @@ namespace sfTracker
         {
             if (vm.SelectedPreset != null)
             {
-                Tracker.SelectInstrument(vm.SelectedPreset.Instrument);
+                Tracker.SelectInstrument(vm.SelectedPreset.Instrument, vm.SelectedPreset.ID);
                 Tracker.SelectBank(vm.SelectedPreset.Bank);
             }
         }
@@ -107,7 +130,9 @@ namespace sfTracker
 
             double rowDuration = (60.0 / (engine.Tracker.BPM * engine.Tracker.TicksPerBeat)) * engine.Tracker.Speed;
 
-            Tracker.CurrentRowPosition = Math.Floor(time / rowDuration) % totalRowCount;
+            double rowsAdvanced = Math.Floor(time / rowDuration);
+            
+            Tracker.CurrentRowPosition = (rowsAdvanced + resumePlaybackRow) % totalRowCount;
 
             SetVerticalScrollbarValue(Tracker.CurrentRowPosition);
 
@@ -116,19 +141,52 @@ namespace sfTracker
             InvalidateVisual();
         }
 
-        public void StartPlayback()
+        private void ComputePatternBoundaries()
         {
-            engine.Start();
+            int currentRow = 0;
+
+            for (int i = 0; i < Tracker.Patterns.Count; i++)
+            {
+                var pattern = Tracker.Patterns[i];
+
+                patternBoundaries.Add(new PatternBoundary
+                {
+                    Index = i,
+                    StartingRow = currentRow,
+                    RowCount = pattern.RowCount
+                });
+
+                currentRow += pattern.RowCount;
+            }
+
+            totalRowCount = currentRow;
+        }
+
+        public void StartPlayback(int currentPattern)
+        {
+            engine.Start(currentPattern);
+
+            int currentRow = (int)Tracker.GlobalCurrentRow;
+
+            foreach (var patternBoundary in patternBoundaries)
+            {
+                if (
+                    currentRow >= patternBoundary.StartingRow &&
+                    currentRow < patternBoundary.StartingRow + patternBoundary.RowCount
+                )
+                {
+                    resumePlaybackRow = patternBoundary.StartingRow;
+                    break;
+                }
+            }
 
             if (!IsPlaying)
             {
                 IsPlaying = true;
-                IsPlaybackScrolling = true;
                 
-                Tracker.PatternCurrentRow = 0;
-                Tracker.FirstVisibleRow = 0;
-                VerticalScrollBar.Value = 0;
-                IsPlaybackScrolling = false;
+                //Tracker.PatternCurrentRow = 0;
+                //Tracker.FirstVisibleRow = 0;
+                //VerticalScrollBar.Value = 0;
 
                 playbackClock.Restart();
                 CompositionTarget.Rendering += OnFrame;
@@ -137,18 +195,15 @@ namespace sfTracker
             {
                 IsPlaying = false;
                 playbackClock.Stop();
-                IsPlaybackScrolling = true;
+                
 
-                Tracker.PatternCurrentRow = 0;
-                Tracker.SetCurrentRow(0);
-
-                IsPlaybackScrolling = false;
+                //Tracker.PatternCurrentRow = 0;
+                //Tracker.SetCurrentRow(0); TODO: check if this is needed?
 
                 CompositionTarget.Rendering -= OnFrame;
             }
 
             InvalidateVisual();
-            //Console.WriteLine("Tracker started!");
         }
 
         public void SetVerticalScrollbarValue(double value)
@@ -182,16 +237,16 @@ namespace sfTracker
 
         private void Tracker_RowChanged(int newRow)
         {
-            _internalScrollChange = true;
+            internalScrollChange = true;
             VerticalScrollBar.Value = newRow;
-            _internalScrollChange = false;
+            internalScrollChange = false;
         }
 
         private void Tracker_ColumnChanged(int newColumn)
         {
-            _internalScrollChange = true;
+            internalScrollChange = true;
             HorizontalScrollBar.Value = newColumn;
-            _internalScrollChange = false;
+            internalScrollChange = false;
         }
 
         private void VerticalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -200,12 +255,76 @@ namespace sfTracker
             Tracker.Focus();
         }
 
-        private bool _internalScrollChange = false;
-
-        private void HorizontalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        private void HorizontalScrollBar_VaueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            Tracker.GlobalCurrentColumn = (int)e.NewValue;
-            Tracker.Focus();
+            // TODO: clean this up, not really working that well
+            if (!IsClickingCell)
+            {
+                double delta = e.NewValue - lastHorizontalScrollValue;
+
+                if (Math.Abs(delta) > 1)
+                {
+                    HorizontalScrollBar.Value = lastHorizontalScrollValue + Math.Sign(delta);
+                    return;
+                }
+
+                lastHorizontalScrollValue = HorizontalScrollBar.Value;
+                Tracker.GlobalCurrentColumn = (int)HorizontalScrollBar.Value;
+                Tracker.Focus();
+            }
+        }
+
+        private void Tracker_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (IsPlaying) { return;  }
+            double mousePosX = e.GetPosition(this).X;
+            double mousePosY = e.GetPosition(this).Y;
+
+            double startingPosX = 50; // TODO: make generic
+            double startingPosY = 470 - (Tracker.RowHeight * Tracker.FirstVisibleRow); // TODO: make generic
+            double absoluteX = mousePosX - startingPosX;
+            double absoluteY = mousePosY - startingPosY;
+
+            if (
+                absoluteX < 0 || absoluteX > Tracker.ColumnWidth * Tracker.ChannelCount ||
+                absoluteY < 0 || absoluteY > Tracker.RowHeight * totalRowCount
+            ) { return; }
+            GetCellFromCoord(absoluteX, absoluteY);
+        }
+
+        private void GetCellFromCoord(double x, double y)
+        {
+            double channelWidth = Tracker.ColumnWidth;
+            for (int channel = 0; channel < 4; channel++) // TODO: make generic
+            {
+                double startingPosX = channel * channelWidth;
+                
+                ColumnDefinitions cols = new ColumnDefinitions(
+                    startingPosX, Tracker.NoteWidth, Tracker.DigitWidth, Tracker.ChannelInnerPadding
+                );
+                List<double> colXCoords = cols.GetColumnCoordinates();
+                List<double> colXCWidths = cols.GetColumnWidths();
+
+                for (int i = 0; i < colXCoords.Count; i++)
+                {
+                    if (x >= colXCoords[i] && x <= colXCoords[i] + colXCWidths[i])
+                    {
+                        int cellColumnToSelect = channel * Tracker.ColumnsPerChannel + i;
+                        IsClickingCell = true;
+                        Tracker.CurrentChannel = channel;
+                        Tracker.GlobalCurrentColumn = cellColumnToSelect;
+                        lastHorizontalScrollValue = cellColumnToSelect;
+                        Tracker.CurrentField = (TrackerField)i;
+                        IsClickingCell = false;
+                        break;
+                    }
+                }
+            }
+
+            int cellRowToSelect = (int)Math.Floor(y / Tracker.RowHeight);
+            IsClickingCell = true;
+            Tracker.GlobalCurrentRow = cellRowToSelect;
+            IsClickingCell = false;
         }
 
         // https://youtu.be/Heq8qve1Vts
@@ -224,7 +343,6 @@ namespace sfTracker
             {
                 string fileName = dialog.FileName;
                 string soundFontName = fileName[(fileName.LastIndexOf('\\') + 1)..];
-                SelectedSoundFont.Text = $"{soundFontName}";
                 //Console.WriteLine($"{soundFontName}, {engine.Tracker.Patterns}, {defaultBPM}");
                 InitialiseTracker(soundFontName, engine.Tracker.Patterns, defaultBPM);
             }
