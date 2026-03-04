@@ -155,7 +155,8 @@ namespace sfTracker.Tracker
         private void HandleNoteTrigger(int channel, int note, int bank, int instrument, int velocity, Voice voice = null)
         {
             // if voice exists, turn it off
-            if (voice != null)
+            // also if voice exists and stop note is present, turn off active voice
+            if (voice != null || (voice != null && note == ProgramConstants.StopNote))
                 NoteOff(channel, voice.Note);
 
             // play new note, note that velocity must be scaled from the tracker display to the range that MIDI supports (0-127)
@@ -179,7 +180,7 @@ namespace sfTracker.Tracker
             {
                 if (cell.Velocity >= 0)
                     TargetVolumes[cell.Channel] = cell.Velocity;
-                if (cell.Note >= 0)
+                if (cell.Note >= 0 || cell.Note == ProgramConstants.StopNote)
                     TriggerNote(cell.Channel, cell.Note, cell.Bank, cell.Instrument, cell.Velocity);
 
                 // TODO: effect parsing

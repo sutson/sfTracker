@@ -1,5 +1,4 @@
-﻿using MeltySynth;
-using sfTracker.Audio;
+﻿using sfTracker.Audio;
 using sfTracker.GUI;
 using sfTracker.Playback;
 using sfTracker.Tracker;
@@ -8,8 +7,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Text;
-using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
@@ -19,22 +16,21 @@ namespace sfTracker
 {
     public partial class MainWindow : Window
     {
-        private SynthEngine engine;
+        private SynthEngine Engine;
         private readonly Stopwatch playbackClock = new();
         private readonly MainViewModel vm;
         private readonly int defaultBPM = 120;
-        private bool isPlaybackScrolling = false;
+        private readonly int defaultChannelCount = 4;
+        private readonly int defaultRowCount = 32;
+
         private int totalRowCount = 0;
-        private bool internalScrollChange = false;
-        private double lastHorizontalScrollValue;
-        private int defaultChannelCount = 4;
-        private int defaultRowCount = 32;
         private double resumePlaybackRow = 0;
+        private double lastHorizontalScrollValue;
         private List<PatternBoundary> patternBoundaries = [];
         private bool IsClickingCell = false;
-
-        public double currentRowPosition;
+        private bool IsInternalScrollChange = false;
         public bool IsPlaying = false;
+        public double currentRowPosition;
         public int currentlyPlayingNote;
 
         public MainWindow()
@@ -67,35 +63,30 @@ namespace sfTracker
 
         private void InitialiseTracker(string soundFont, Pattern[] patterns, int BPM)
         {
-            engine?.ResetTracker(0);
-            engine?.Dispose();
+            Engine?.ResetTracker(0);
+            Engine?.Dispose();
             DisableEventListeners();
 
-            engine = new SynthEngine(soundFont);
-            engine.Tracker.Patterns = patterns;
-            engine.Tracker.ActiveVoices = new Voice[defaultChannelCount];
-            engine.Tracker.CurrentVolumes = new int[defaultChannelCount];
-            engine.Tracker.TargetVolumes = new int[defaultChannelCount];
-            engine.Tracker.SetBPM(BPM);
+            Engine = new SynthEngine(soundFont);
+            Engine.Tracker.Patterns = patterns;
+            Engine.Tracker.ActiveVoices = new Voice[defaultChannelCount];
+            Engine.Tracker.CurrentVolumes = new int[defaultChannelCount];
+            Engine.Tracker.TargetVolumes = new int[defaultChannelCount];
+            Engine.Tracker.SetBPM(BPM);
             
-            Tracker.Patterns = engine.Tracker.Patterns;
-            Tracker.Engine = engine;
+            Tracker.Patterns = Engine.Tracker.Patterns;
+            Tracker.Engine = Engine;
             Tracker.Focus();
 
-            //for (int i = 0; i < Tracker.Patterns.Count; i++)
-            //    totalRowCount += Tracker.Patterns[i].RowCount;
-
             ComputePatternBoundaries();
-
             LoadSoundFont(soundFont);
-            SelectedSoundFont.Text = $"{soundFont}";
             EnableEventListeners();
-            Console.WriteLine("Tracker initialized!");
+            SelectedSoundFont.Text = $"{soundFont}";
         }
 
         private void DisableEventListeners()
         {
-            CompositionTarget.Rendering -= (s, e) => Tracker.SetCurrentRow(engine.Tracker.CurrentRow);
+            CompositionTarget.Rendering -= (s, e) => Tracker.SetCurrentRow(Engine.Tracker.CurrentRow);
             Tracker.PlaybackStarted -= StartPlayback;
             Tracker.VerticalScrollbarValueChanged -= SetVerticalScrollbarValue;
             Tracker.HorizontalScrollbarValueChanged -= SetHorizontalScrollbarValue;
@@ -106,7 +97,7 @@ namespace sfTracker
 
         private void EnableEventListeners()
         {
-            CompositionTarget.Rendering += (s, e) => Tracker.SetCurrentRow(engine.Tracker.CurrentRow);
+            CompositionTarget.Rendering += (s, e) => Tracker.SetCurrentRow(Engine.Tracker.CurrentRow);
             Tracker.PlaybackStarted += StartPlayback;
             Tracker.VerticalScrollbarValueChanged += SetVerticalScrollbarValue;
             Tracker.HorizontalScrollbarValueChanged += SetHorizontalScrollbarValue;
@@ -127,17 +118,12 @@ namespace sfTracker
         private void OnFrame(object sender, EventArgs e)
         {
             double time = playbackClock.Elapsed.TotalSeconds;
-
-            double rowDuration = (60.0 / (engine.Tracker.BPM * engine.Tracker.TicksPerBeat)) * engine.Tracker.Speed;
-
+            double rowDuration = (60.0 / (Engine.Tracker.BPM * Engine.Tracker.TicksPerBeat)) * Engine.Tracker.Speed;
             double rowsAdvanced = Math.Floor(time / rowDuration);
             
             Tracker.CurrentRowPosition = (rowsAdvanced + resumePlaybackRow) % totalRowCount;
-
             SetVerticalScrollbarValue(Tracker.CurrentRowPosition);
-
             Tracker.GlobalCurrentRow = (int)Tracker.CurrentRowPosition;
-
             InvalidateVisual();
         }
 
@@ -165,9 +151,9 @@ namespace sfTracker
 
         public void StartPlayback(int currentPattern)
         {
-            engine.Start(currentPattern);
+            Engine.Start(currentPattern);
 
-            int currentRow = (int)Tracker.GlobalCurrentRow;
+            int currentRow = Tracker.GlobalCurrentRow;
 
             foreach (var patternBoundary in patternBoundaries)
             {
@@ -184,11 +170,6 @@ namespace sfTracker
             if (!IsPlaying)
             {
                 IsPlaying = true;
-                
-                //Tracker.PatternCurrentRow = 0;
-                //Tracker.FirstVisibleRow = 0;
-                //VerticalScrollBar.Value = 0;
-
                 playbackClock.Restart();
                 CompositionTarget.Rendering += OnFrame;
             }
@@ -196,11 +177,6 @@ namespace sfTracker
             {
                 IsPlaying = false;
                 playbackClock.Stop();
-                
-
-                //Tracker.PatternCurrentRow = 0;
-                //Tracker.SetCurrentRow(0); TODO: check if this is needed?
-
                 CompositionTarget.Rendering -= OnFrame;
             }
 
@@ -238,16 +214,16 @@ namespace sfTracker
 
         private void Tracker_RowChanged(int newRow)
         {
-            internalScrollChange = true;
+            IsInternalScrollChange = true;
             VerticalScrollBar.Value = newRow;
-            internalScrollChange = false;
+            IsInternalScrollChange = false;
         }
 
         private void Tracker_ColumnChanged(int newColumn)
         {
-            internalScrollChange = true;
+            IsInternalScrollChange = true;
             HorizontalScrollBar.Value = newColumn;
-            internalScrollChange = false;
+            IsInternalScrollChange = false;
         }
 
         private void VerticalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -277,7 +253,7 @@ namespace sfTracker
 
         private void Tracker_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (IsPlaying) { return;  }
+            if (IsPlaying) { return; }
             double mousePosX = e.GetPosition(this).X;
             double mousePosY = e.GetPosition(this).Y;
 
@@ -290,7 +266,9 @@ namespace sfTracker
                 absoluteX < 0 || absoluteX > Tracker.ColumnWidth * Tracker.ChannelCount ||
                 absoluteY < 0 || absoluteY > Tracker.RowHeight * totalRowCount
             ) { return; }
+
             GetCellFromCoord(absoluteX, absoluteY);
+            Tracker.Focus();
         }
 
         private void GetCellFromCoord(double x, double y)
@@ -344,8 +322,7 @@ namespace sfTracker
             {
                 string fileName = dialog.FileName;
                 string soundFontName = fileName[(fileName.LastIndexOf('\\') + 1)..];
-                //Console.WriteLine($"{soundFontName}, {engine.Tracker.Patterns}, {defaultBPM}");
-                InitialiseTracker(soundFontName, engine.Tracker.Patterns, defaultBPM);
+                InitialiseTracker(soundFontName, Engine.Tracker.Patterns, defaultBPM);
             }
         }
 
@@ -367,8 +344,8 @@ namespace sfTracker
         //    if (e.Key != Key.Enter)
         //    {
         //        Console.WriteLine("ojisdfgjiogsd");
-        //        engine.Start();
-        //        engine.Tracker.TriggerNoteWithKeyboard(
+        //        Engine.Start();
+        //        Engine.Tracker.TriggerNoteWithKeyboard(
         //            Tracker.CurrentColumn,
         //            (int)Tracker.GetMidiNote(e.Key),
         //            vm.SelectedPreset.Bank,
@@ -383,8 +360,8 @@ namespace sfTracker
 
         //private void OnKeyRelease(object sender, System.Windows.Input.KeyEventArgs e)
         //{
-        //    engine.StopAudio();
-        //    engine.Tracker.TriggerNoteWithKeyboard(
+        //    Engine.StopAudio();
+        //    Engine.Tracker.TriggerNoteWithKeyboard(
         //        Tracker.CurrentColumn,
         //        currentlyPlayingNote,
         //        -1,

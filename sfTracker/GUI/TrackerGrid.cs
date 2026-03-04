@@ -320,6 +320,7 @@ public class TrackerGrid : FrameworkElement
     public static string GetNoteTextToRender(int note)
     {
         if (note == -1) return "---";
+        if (note == ProgramConstants.StopNote) return new string('━', 3);
         return TrackerEngine.CalculateMidiNote(note);
     }
 
@@ -366,6 +367,22 @@ public class TrackerGrid : FrameworkElement
             instrument: SelectedInstrument == -1 ? 0 : SelectedInstrument,
             instrumentID: SelectedInstrumentID == -1 ? 0 : SelectedInstrumentID,
             volume: ProgramConstants.MaxDisplayVolume
+        );
+        GlobalCurrentRow++;
+    }
+
+    private void PlaceStopNote()
+    {
+        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = ProgramConstants.StopNote;
+        SetNote(
+            pattern: currentPatternIndex,
+            row: PatternCurrentRow,
+            channel: CurrentChannel,
+            note: ProgramConstants.StopNote,
+            bank: -1,
+            instrument: -1,
+            instrumentID: -1,
+            volume: -1
         );
         GlobalCurrentRow++;
     }
@@ -489,6 +506,12 @@ public class TrackerGrid : FrameworkElement
         switch (CurrentField)
         {
             case TrackerField.Note:
+                if (GetIntFromKey(e.Key) == (int)Keybinds.StopNote)
+                {
+                    PlaceStopNote();
+                    break;
+                }
+
                 MidiNoteValueMap? note = GetMidiNote(e.Key);
                 if (note != null)
                     PlaceNote(note.Value);

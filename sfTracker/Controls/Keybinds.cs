@@ -8,5 +8,6 @@ namespace sfTracker.Controls
 {
     public enum Keybinds
     {
+        StopNote = 1,
     }
 }
