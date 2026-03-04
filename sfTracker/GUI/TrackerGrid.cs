@@ -370,7 +370,6 @@ public class TrackerGrid : FrameworkElement
         );
         GlobalCurrentRow++;
     }
-
     private void PlaceStopNote()
     {
         Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = ProgramConstants.StopNote;
@@ -385,6 +384,17 @@ public class TrackerGrid : FrameworkElement
             volume: -1
         );
         GlobalCurrentRow++;
+    }
+    private void HandlePitchChange(PitchChange change)
+    {
+        // do nothing if note is empty or stop note
+        if (Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) { return; }
+
+        // update note pitch based on change input (either semitone or octave change)
+        // ensure it is clamped within the region of valid MIDI notes
+        int updatedValue = Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note + (int)change;
+        if (updatedValue < ProgramConstants.MinMidiNoteValue || updatedValue > ProgramConstants.MaxMidiNoteValue) { return; }
+        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = updatedValue;
     }
 
     private void ChangeNoteInstrument(int digitIndex, int newValue)
@@ -605,6 +615,22 @@ public class TrackerGrid : FrameworkElement
 
             case Key.Delete:
                 DeleteNote();
+                break;
+
+            case Key.Oem3: // '@ key
+                HandlePitchChange(PitchChange.DecreaseSemitone);
+                break;
+            
+            case Key.Oem7: // '@ key
+                HandlePitchChange(PitchChange.IncreaseSemitone);
+                break;
+
+            case Key.Oem4: // [{ key
+                HandlePitchChange(PitchChange.DecreaseOctave);
+                break;
+            
+            case Key.Oem6: // ]} key
+                HandlePitchChange(PitchChange.IncreaseOctave);
                 break;
 
             case Key.Back:
