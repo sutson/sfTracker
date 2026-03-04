@@ -23,6 +23,7 @@ public class TrackerGrid : FrameworkElement
     private int SelectedBank = -1;
     private int SelectedInstrument = -1;
     private int SelectedInstrumentID = -1;
+    private int MaxRenderHeight = 500;
 
     public int CurrentRow = 0;
     public int CurrentColumn = 0;
@@ -107,13 +108,13 @@ public class TrackerGrid : FrameworkElement
     {
         base.OnRender(context);
 
-        Point colSepStart = new(0, -209); // TODO: decide if i want to render column seps like this
+        Point colSepStart = new(0, -209);
         Point colSepEnd = new(0, 1000);
         Pen linePen = new(Brushes.ActivePatternBrush, 1);
 
         for (int channel = 0; channel < ChannelCount + 1; channel++)
         {
-            colSepStart.X = channel * ColumnWidth; // TODO: decide if i want to render column seps like this
+            colSepStart.X = channel * ColumnWidth;
             colSepEnd.X = channel * ColumnWidth;
             context.DrawLine(linePen, colSepStart, colSepEnd);
         }
@@ -148,14 +149,14 @@ public class TrackerGrid : FrameworkElement
 
                 for (int channel = 0; channel < ChannelCount; channel++)
                 {
-                    if (y + (LeadInRows * RowHeight) < 0 || y > 500) // TODO: change 500 to const
+                    if (y + (LeadInRows * RowHeight) < 0 || y > MaxRenderHeight)
                         continue;
 
                     double startChannelX = channel * ColumnWidth;
                     ColumnDefinitions cols = new ColumnDefinitions(startChannelX, NoteWidth, DigitWidth, ChannelInnerPadding);
                     var cell = Patterns[i].Rows[row].Cells[channel];
 
-                    // Highlight every 4th row
+                    // highlight every fourth row
                     if (row % 4 == 0)
                     {
                         context.DrawRectangle(
@@ -189,7 +190,7 @@ public class TrackerGrid : FrameworkElement
                         new Point(cols.effectFirstX, y)
                     );
 
-                    // --- Current Cell Highlight ---
+                    // highlight current cell
                     if (absoluteRow == GlobalCurrentRow && channel == CurrentChannel)
                     {
                         HighlightCurrentCell(context, startChannelX, cols.instrFirstX, cols.instrSecondX, cols.instrThirdX, cols.volFirstX,
@@ -202,14 +203,14 @@ public class TrackerGrid : FrameworkElement
             globalRowOffset += RowCount;
         }
 
-        // Highlight current row
+        // highlight current row
         context.DrawRectangle(
             Brushes.CurrentRowHighlight,
             null,
             new Rect(
                 0,
                 (CurrentRow - FirstVisibleRow) * RowHeight,
-                ChannelCount * ColumnWidth, // TODO: change to generic channel count
+                ChannelCount * ColumnWidth,
                 RowHeight
             ));
     }
@@ -219,7 +220,6 @@ public class TrackerGrid : FrameworkElement
         double effectThirdX, double effectFourthX, double y
     )
     {
-        //Console.WriteLine(CurrentField);
         switch (CurrentField)
         {
             case TrackerField.Note:
@@ -309,9 +309,6 @@ public class TrackerGrid : FrameworkElement
                     new Rect(effectFourthX, y, DigitWidth, RowHeight)
                 );
                 break;
-
-            //default:
-            //    throw new NotImplementedException();
         }
     }
 
@@ -374,12 +371,12 @@ public class TrackerGrid : FrameworkElement
     {
         Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = (int)note;
         SetNote(
-            pattern: currentPatternIndex, // TODO: update to use current pattern
+            pattern: currentPatternIndex,
             row: PatternCurrentRow,
             channel: CurrentChannel,
-            note: (int)note, // TODO: update to map key press to MIDI value, not just C4
+            note: (int)note,
             bank: SelectedBank,
-            instrument: SelectedInstrument == -1 ? 0 : SelectedInstrument, // TODO: update to use selected instrument
+            instrument: SelectedInstrument == -1 ? 0 : SelectedInstrument,
             instrumentID: SelectedInstrumentID == -1 ? 0 : SelectedInstrumentID,
             volume: 100 // TODO: this could be 127 but i think 100 makes more sense, maybe just 99 to reduce clutter
         );
@@ -428,7 +425,6 @@ public class TrackerGrid : FrameworkElement
 
     private void DeleteNote(bool IsBackspace = false)
     {
-        //Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = -1;
         switch (CurrentField)
         {
             case TrackerField.Note:
@@ -476,8 +472,6 @@ public class TrackerGrid : FrameworkElement
                     volume: -1
                 );
                 break;
-
-                // TODO: make it so volume changes (with no notes present) affects active voice
 
             case TrackerField.EffectFirstDigit:
             case TrackerField.EffectSecondDigit:
@@ -620,12 +614,6 @@ public class TrackerGrid : FrameworkElement
 
             case Key.Enter:
                 StartPlayback();
-                if (!IsPlaying)
-                {
-                    //SetVerticalScrollbarValue(0);
-                    //SetCurrentRow(0);
-                    //FirstVisibleRow = 0;
-                }
                 break;
         }
 
@@ -688,31 +676,6 @@ public class TrackerGrid : FrameworkElement
         AdvancedColumn?.Invoke(cur, next);
     }
 
-
-    protected override void OnMouseDown(MouseButtonEventArgs e)
-    {
-        base.OnMouseDown(e);
-
-        // TODO: set clicked cell as current row/channel
-
-        //var position = e.GetPosition(this);
-        
-        //var x = position.X;
-        //var y = position.Y;
-
-        //var fullX = Patterns[0].Rows[0].Cells.Length;
-        //var fullY = Patterns[0].Rows.Length;
-
-        //var cellX = Math.Floor(fullX / x);
-        //var cellY = Math.Floor(fullY / y);
-
-
-        //Console.WriteLine(cellX + " " + cellY);
-
-        //Console.WriteLine(e.GetPosition(this));
-        //currentRow = 3;
-        Focus(); // sets keyboard focus to this control
-    }
     public int GlobalCurrentRow
     {
         get => CurrentRow;
@@ -795,45 +758,18 @@ public class TrackerGrid : FrameworkElement
 
     private int WrapColumn(int column)
     {
-        //Console.WriteLine($"Current Field: {CurrentField}, Current Column {CurrentColumn}");
-
         // reset to first channel, first field when going out of bounds
-        if (column < 0) // TODO: make generic
+        if (column < 0)
         {
             CurrentChannel = 0;
             CurrentField = TrackerField.Note;
             return 0;
         }
 
-        if (column > ColumnsPerChannel * ChannelCount - 1) // TODO: make generic
+        if (column > ColumnsPerChannel * ChannelCount - 1)
         {
             return ColumnsPerChannel * ChannelCount - 1;
         }
-
-        //if (column < CurrentColumn)
-        //{
-        //    if (column == CurrentChannel * ColumnsPerChannel - 1)
-        //    {
-        //        CurrentChannel--;
-        //        CurrentField = TrackerField.EffectFourthDigit;
-        //    }
-        //    else
-        //    {
-        //        CurrentField--;
-        //    }
-        //}
-        //else if (column > CurrentColumn)
-        //{
-        //    if (CurrentColumn == (CurrentChannel + 1) * ColumnsPerChannel - 1)
-        //    {
-        //        CurrentChannel++;
-        //        CurrentField = TrackerField.Note;
-        //    }
-        //    else
-        //    {
-        //        CurrentField++;
-        //    }
-        //}
 
         int change = column - CurrentColumn;
 
@@ -862,7 +798,7 @@ public class TrackerGrid : FrameworkElement
             }
         }
 
-        CurrentField = (TrackerField)Math.Clamp((int)CurrentField, 0, ColumnsPerChannel - 1); // TODO: clamp properly
+        CurrentField = (TrackerField)Math.Clamp((int)CurrentField, 0, ColumnsPerChannel - 1); // clamp to ensure within valid range
 
         return column;
     }
