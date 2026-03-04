@@ -9,6 +9,7 @@
         public int Note { get; set; } = -1;       // pitch of note
         public int Bank { get; set; } = -1;       // bank number in SoundFont
         public int Instrument { get; set; } = -1; // instrument number in SoundFont
-        public int Velocity { get; set; } = 100;  // volume of the cell
+        public int InstrumentID { get; set; } = -1; // instrument ID for displaying on the tracker grid
+        public int Velocity { get; set; } = -1;  // volume of the cell
     }
 }

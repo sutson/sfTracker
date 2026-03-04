@@ -29,7 +29,7 @@ namespace sfTracker.GUI
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
-        public void LoadSoundFont(string path)
+        public ObservableCollection<SoundFontPreset> LoadSoundFont(string path)
         {
             var soundFont = new SoundFont(path);
 
@@ -41,12 +41,17 @@ namespace sfTracker.GUI
             {
                 Presets.Add(new SoundFontPreset
                 {
+                    ID          = i,
                     Name        = presets[i].Name,
-                    DisplayID   = i,
                     Bank        = presets[i].BankNumber,
-                    Instrument  = presets[i].PatchNumber
+                    Instrument  = presets[i].PatchNumber,
+                    DisplayID   = i.ToString().PadLeft(3, '0'),
                 });
             }
+
+            SelectedPreset = Presets[0]; // set selected preset on load
+
+            return Presets;
         }
     }
 }

@@ -1,11 +1,16 @@
-﻿using sfTracker.Audio;
+﻿using MeltySynth;
+using sfTracker.Audio;
 using sfTracker.Controls;
 using sfTracker.Playback;
 using sfTracker.Tracker;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Linq;
 using System.Net;
+using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -13,26 +18,50 @@ using System.Windows.Media;
 namespace sfTracker.GUI;
 public class TrackerGrid : FrameworkElement
 {
+    private int RowCount = 0;
+    private int RowOffset = 0;
+    private int SelectedBank = -1;
+    private int SelectedInstrument = -1;
+    private int SelectedInstrumentID = -1;
+
     public int CurrentRow = 0;
     public int CurrentColumn = 0;
+    public int CurrentChannel = 0;
+    public int ChannelCount = 4; // TODO: make generic
     public int PatternCurrentRow = 0;
     public int currentPatternIndex = 0; // index in Patterns[]
     public int FirstVisibleRow = 0;
     public int TotalRowCount = 0;
     public double VerticalScrollbarValue = 0;
     public double HorizontalScrollbarValue = 0;
-    private int RowOffset = 0;
-    private int SelectedBank = -1;
-    private int SelectedInstrument = -1;
     public bool IsPlaying = false;
 
+    public ObservableCollection<SoundFontPreset> PresetList = [];
+    public TrackerField CurrentField = TrackerField.Note;
+    public int ColumnsPerChannel = Enum.GetValues(typeof(TrackerField)).Length; // 1 (note) + 3 (instrument) + 3 (volume) + 4 (effect) TODO: make this a const
+
     public double RowHeight = 15;
-    private const double ColumnWidth = 120;
-    private readonly int LeadInRows = 8; // number of rows before the viewport starts scrolling
+    public readonly int LeadInRows = 8; // number of rows before the viewport starts scrolling
+
+    public double DigitWidth;
+    public double NoteWidth;
+    public double ChannelInnerPadding;
+    public double ColumnWidth;
+
     public SynthEngine Engine { get; set; }
 
     public TrackerGrid()
     {
+        DigitWidth = 7.8;
+        NoteWidth = DigitWidth * 3 + ChannelInnerPadding;
+        ChannelInnerPadding = 10;
+        ColumnWidth =
+            NoteWidth +                 // note cell
+            DigitWidth * 3 +            // instrument cell (3 digits)
+            DigitWidth * 3 +            // volume cell (3 digits)
+            DigitWidth * 4 +            // effects cell (1 char + 3 digits)
+            ChannelInnerPadding * 4;    // 4 paddings (between notes/instrs, instrs/volumes, volumes/effects, 1/2 either side)
+
         Brushes.Init();
         Focusable = true; // set focusable so key presses can be used to navigate/place notes
     }
@@ -81,11 +110,16 @@ public class TrackerGrid : FrameworkElement
     {
         base.OnRender(context);
 
-        //Point colSepStart = new Point(0, -209); TODO: decide if i want to render column seps like this
-        //Point colSepEnd = new Point(0, 1000);
+        Point colSepStart = new(0, -209); // TODO: decide if i want to render column seps like this
+        Point colSepEnd = new(0, 1000);
+        Pen linePen = new(Brushes.ActivePatternBrush, 1);
 
-        //Pen linePen = new Pen(Brushes.ActivePatternBrush, 1);
-        //context.DrawLine(linePen, colSepStart, colSepEnd);
+        for (int channel = 0; channel < ChannelCount + 1; channel++)
+        {
+            colSepStart.X = channel * ColumnWidth; // TODO: decide if i want to render column seps like this
+            colSepEnd.X = channel * ColumnWidth;
+            context.DrawLine(linePen, colSepStart, colSepEnd);
+        }
 
         if (Patterns == null || Patterns.Count == 0) return;
 
@@ -95,78 +129,192 @@ public class TrackerGrid : FrameworkElement
         {
             var brush = (i == currentPatternIndex) ? Brushes.ActivePatternBrush : Brushes.InactivePatternBrush;
 
-            int rowCount = Patterns[i].RowCount; // get number of rows in current pattern
-            int channelCount = Patterns[i].Rows[0].Cells.Length; // get number of channels (columns) in current pattern
+            RowCount = Patterns[i].RowCount; // get number of rows in current pattern
 
-            for (int row = 0; row < rowCount; row++)
+            for (int row = 0; row < RowCount; row++)
             {
                 int absoluteRow = globalRowOffset + row;
-
                 double y = (absoluteRow - FirstVisibleRow) * RowHeight;
 
-                // draw row number on the left
                 if (y + (LeadInRows * RowHeight) >= 0)
+                {
                     context.DrawText(
                         RenderText(
                             GetRowString(absoluteRow),
-                            (i == currentPatternIndex) ?
-                                (row % 4 == 0 ? Brushes.ActivePatternBrush : Brushes.LowOpacityTextBrush) :
-                                (row % 4 == 0 ? Brushes.InactiveTextBrush : Brushes.LowOpacityInactiveTextBrush)
+                            (i == currentPatternIndex)
+                                ? (row % 4 == 0 ? Brushes.ActivePatternBrush : Brushes.LowOpacityTextBrush)
+                                : (row % 4 == 0 ? Brushes.InactiveTextBrush : Brushes.LowOpacityInactiveTextBrush)
                         ),
                         new Point(-31.5, y)
                     );
+                }
 
-                for (int channel = 0; channel < channelCount; channel++)
+                for (int channel = 0; channel < ChannelCount; channel++)
                 {
-                    double x = channel * ColumnWidth; // horizontal width of tracker window
+                    if (y + (LeadInRows * RowHeight) < 0 || y > 500) // TODO: change 500 to const
+                        continue;
 
-                    //colSepStart.X += ColumnWidth; TODO: decide if i want to render column seps like this
-                    //colSepEnd.X += ColumnWidth;
-                    //context.DrawLine(linePen, colSepStart, colSepEnd);
+                    double startChannelX = channel * ColumnWidth;
+                    ColumnDefinitions cols = new ColumnDefinitions(startChannelX, NoteWidth, DigitWidth, ChannelInnerPadding);
+                    var cell = Patterns[i].Rows[row].Cells[channel];
 
-                    var cell = Patterns[i].Rows[row].Cells[channel]; // cell at current position
-
-                    if (y + (LeadInRows * RowHeight) < 0)
-                        continue; // skip drawing rows outside the visible area
-
-                    context.DrawText(RenderText(GetNoteText(cell.Note), brush), new Point(x + 5, y)); // draw --- or note value in cell
-
-                    // highlight every fourth row like other trackers
-                    if (row < rowCount && row % 4 == 0)
+                    // Highlight every 4th row
+                    if (row % 4 == 0)
                     {
-                        if (i == currentPatternIndex)
-                            context.DrawRectangle(Brushes.FourthRowHighlight, null, new Rect(0, y, channelCount * ColumnWidth, RowHeight));
-                        else
-                            context.DrawRectangle(Brushes.InactiveFourthRowHighlight, null, new Rect(0, y, channelCount * ColumnWidth, RowHeight));
+                        context.DrawRectangle(
+                            i == currentPatternIndex
+                                ? Brushes.FourthRowHighlight
+                                : Brushes.InactiveFourthRowHighlight,
+                            null,
+                            new Rect(0, y, ChannelCount * ColumnWidth, RowHeight)
+                        );
                     }
 
-                    if (absoluteRow == GlobalCurrentRow && channel == CurrentColumn)
-                    {
-                        double highlightY = (absoluteRow - FirstVisibleRow) * RowHeight; // TODO: fix this highlight lagging behind on restart?
+                    context.DrawText(
+                        RenderText(GetNoteTextToRender(cell.Note), brush), // TODO: make the --- a less bright, while keeping normal text same
+                        new Point(cols.noteX, y)
+                    );
 
-                        context.DrawRectangle(
-                            Brushes.CurrentCellHighlight,
-                            null,
-                            new Rect(x, highlightY, ColumnWidth, RowHeight));
+                    context.DrawText(
+                        RenderText(GetInstrumentTextToRender(cell.InstrumentID), brush),
+                        new Point(cols.instrFirstX, y)
+                    );
+
+                    context.DrawText(
+                        RenderText(GetVolumeTextToRender(cell.Velocity), brush),
+                        new Point(cols.volFirstX, y)
+                    );
+
+                    //string effectText = $"{cell.EffectCode}{cell.EffectValue:D3}";
+                    string effectText = $"----";
+                    context.DrawText(
+                        RenderText(effectText, brush),
+                        new Point(cols.effectFirstX, y)
+                    );
+
+                    // --- Current Cell Highlight ---
+                    if (absoluteRow == GlobalCurrentRow && channel == CurrentChannel)
+                    {
+                        HighlightCurrentCell(context, startChannelX, cols.instrFirstX, cols.instrSecondX, cols.instrThirdX, cols.volFirstX,
+                            cols.volSecondX, cols.volThirdX, cols.effectFirstX, cols.effectSecondX, cols.effectThirdX, cols.effectFourthX, y
+                        );
                     }
                 }
             }
 
-            globalRowOffset += rowCount;
+            globalRowOffset += RowCount;
         }
 
         // Highlight current row
-        if (IsPlaying)
+        context.DrawRectangle(
+            Brushes.CurrentRowHighlight,
+            null,
+            new Rect(
+                0,
+                (CurrentRow - FirstVisibleRow) * RowHeight,
+                ChannelCount * ColumnWidth, // TODO: change to generic channel count
+                RowHeight
+            ));
+    }
+
+    private void HighlightCurrentCell(DrawingContext context, double channelX, double instrFirstX, double instrSecondX,
+        double instrThirdX, double volFirstX, double volSecondX, double volThirdX, double effectFirstX, double effectSecondX,
+        double effectThirdX, double effectFourthX, double y
+    )
+    {
+        //Console.WriteLine(CurrentField);
+        switch (CurrentField)
         {
-            context.DrawRectangle(
-                Brushes.CurrentRowHighlight,
-                null,
-                new Rect(
-                    0,
-                    (CurrentRowPosition - FirstVisibleRow) * RowHeight,
-                    4 * ColumnWidth, // TODO: change to generic channel count
-                    RowHeight
-                ));
+            case TrackerField.Note:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(channelX, y, NoteWidth + ChannelInnerPadding, RowHeight)
+                );
+                break;
+
+            case TrackerField.InstrumentFirstDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(instrFirstX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            case TrackerField.InstrumentSecondDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(instrSecondX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            case TrackerField.InstrumentThirdDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(instrThirdX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            case TrackerField.VolumeFirstDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(volFirstX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            case TrackerField.VolumeSecondDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(volSecondX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            case TrackerField.VolumeThirdDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(volThirdX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            case TrackerField.EffectFirstDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(effectFirstX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            case TrackerField.EffectSecondDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(effectSecondX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            case TrackerField.EffectThirdDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(effectThirdX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            case TrackerField.EffectFourthDigit:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(effectFourthX, y, DigitWidth, RowHeight)
+                );
+                break;
+
+            //default:
+            //    throw new NotImplementedException();
         }
     }
 
@@ -188,10 +336,22 @@ public class TrackerGrid : FrameworkElement
         return text;
     }
 
-    public static string GetNoteText(int note)
+    public static string GetNoteTextToRender(int note)
     {
         if (note == -1) return "---";
         return TrackerEngine.CalculateMidiNote(note);
+    }
+
+    public static string GetInstrumentTextToRender(int instrument)
+    {
+        if (instrument == -1) return "---";
+        return instrument.ToString().PadLeft(3, '0');
+    }
+
+    public static string GetVolumeTextToRender(int volume)
+    {
+        if (volume == -1) return "---";
+        return volume.ToString().PadLeft(3, '0');
     }
 
     private string GetRowString(int absoluteRow)
@@ -213,31 +373,123 @@ public class TrackerGrid : FrameworkElement
         return rowStr.PadLeft(3, '0');
     }
 
-    private void PlaceNote(MidiNoteValueMap? note)
+    private void PlaceNote(MidiNoteValueMap note)
     {
-        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentColumn].Note = (int)note;
+        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = (int)note;
         SetNote(
             pattern: currentPatternIndex, // TODO: update to use current pattern
             row: PatternCurrentRow,
-            channel: CurrentColumn,
+            channel: CurrentChannel,
             note: (int)note, // TODO: update to map key press to MIDI value, not just C4
             bank: SelectedBank,
-            instrument: SelectedInstrument // TODO: update to use selected instrument
+            instrument: SelectedInstrument == -1 ? 0 : SelectedInstrument, // TODO: update to use selected instrument
+            instrumentID: SelectedInstrumentID == -1 ? 0 : SelectedInstrumentID,
+            volume: 100 // TODO: this could be 127 but i think 100 makes more sense, maybe just 99 to reduce clutter
         );
         GlobalCurrentRow++;
     }
 
+    private void ChangeNoteInstrument(int digitIndex, int newValue)
+    {
+        int instrumentID = Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID;
+        int updatedInstrumentID = UpdateNumberValue(
+            instrumentID == -1 ? "000" : instrumentID.ToString().PadLeft(3, '0'),
+            digitIndex,
+            newValue
+        );
+        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID = updatedInstrumentID;
+
+        SoundFontPreset preset = PresetList.FirstOrDefault(x => x.ID == updatedInstrumentID);
+        
+        if (preset == null) { return; } // TODO: update to make instrument colour red if no preset found
+
+        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument = preset.Instrument;
+        //GlobalCurrentRow++;
+    }
+
+    private void ChangeNoteVolume(int digitIndex, int newValue)
+    {
+        int volume = Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity;
+        int updatedVolume = UpdateNumberValue(
+            volume == -1 ? "000" : volume.ToString().PadLeft(3, '0'),
+            digitIndex,
+            newValue
+        );
+        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
+        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity = updatedVolume;
+        //GlobalCurrentRow++;
+    }
+
+    private int UpdateNumberValue(string idString, int index, int newDigit)
+    {
+        var chars = idString.ToCharArray();
+        chars[index] = (char)('0' + newDigit);
+        return int.Parse(new string(chars));
+    }
+
+
+
     private void DeleteNote(bool IsBackspace = false)
     {
-        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentColumn].Note = -1;
-        SetNote(
-            pattern: currentPatternIndex,
-            row: PatternCurrentRow,
-            channel: CurrentColumn,
-            note: -1,
-            bank: -1,
-            instrument: -1
-        );
+        //Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = -1;
+        switch (CurrentField)
+        {
+            case TrackerField.Note:
+                // remove all values in row
+                SetNote(
+                    pattern: currentPatternIndex,
+                    row: PatternCurrentRow,
+                    channel: CurrentChannel,
+                    note: -1,
+                    bank: -1,
+                    instrument: -1,
+                    instrumentID: -1,
+                    volume: -1
+                );
+                break;
+            case TrackerField.InstrumentFirstDigit:
+            case TrackerField.InstrumentSecondDigit:
+            case TrackerField.InstrumentThirdDigit:
+                // remove instrument values only
+                //SetNote(
+                //    pattern: currentPatternIndex,
+                //    row: PatternCurrentRow,
+                //    channel: CurrentChannel,
+                //    note: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
+                //    bank: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
+                //    instrument: -1,
+                //    instrumentID: -1,
+                //    volume: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity
+                //);
+
+                // TODO: decide if i want this to even be possible, because it defaults to 000 anyway when set to -1
+                break;
+            case TrackerField.VolumeFirstDigit:
+            case TrackerField.VolumeSecondDigit:
+            case TrackerField.VolumeThirdDigit:
+                // remove volume values only
+                SetNote(
+                    pattern: currentPatternIndex,
+                    row: PatternCurrentRow,
+                    channel: CurrentChannel,
+                    note: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
+                    bank: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
+                    instrument: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
+                    instrumentID: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
+                    volume: -1
+                );
+                break;
+
+                // TODO: make it so volume changes (with no notes present) affects active voice
+
+            case TrackerField.EffectFirstDigit:
+            case TrackerField.EffectSecondDigit:
+            case TrackerField.EffectThirdDigit:
+            case TrackerField.EffectFourthDigit:
+                // remove effect values only
+                break;
+
+        }
 
         if (IsBackspace)
             GlobalCurrentRow--;
@@ -245,22 +497,104 @@ public class TrackerGrid : FrameworkElement
             GlobalCurrentRow++;
     }
 
-    private void SetNote(int pattern, int row, int channel, int note, int bank, int instrument)
+    private void SetNote(int pattern, int row, int channel, int note, int bank, int instrument, int instrumentID, int volume)
     {
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Channel = channel;
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Note = note;
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Bank = bank;
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Instrument = instrument;
+        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].InstrumentID = instrumentID;
+        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Velocity = volume;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (Patterns == null || Patterns.Count == 0) return;
 
-        MidiNoteValueMap? note = GetMidiNote(e.Key);
-        if (note != null)
-            PlaceNote(note);
-        
+        switch (CurrentField)
+        {
+            case TrackerField.Note:
+                MidiNoteValueMap? note = GetMidiNote(e.Key);
+                if (note != null)
+                    PlaceNote(note.Value);
+                break;
+
+            case TrackerField.InstrumentFirstDigit:
+                if (IsKeyDigit(e.Key))
+                {
+                    int? value = GetIntFromKey(e.Key);
+                    if (value != null)
+                        ChangeNoteInstrument(digitIndex: 0, newValue: value.Value);
+                }
+                break;
+
+            case TrackerField.InstrumentSecondDigit:
+                if (IsKeyDigit(e.Key))
+                {
+                    int? value = GetIntFromKey(e.Key);
+                    if (value != null)
+                        ChangeNoteInstrument(digitIndex: 1, newValue: value.Value);
+                }
+                break;
+
+            case TrackerField.InstrumentThirdDigit:
+                if (IsKeyDigit(e.Key))
+                {
+                    int? value = GetIntFromKey(e.Key);
+                    if (value != null)
+                        ChangeNoteInstrument(digitIndex: 2, newValue: value.Value);
+                }
+                break;
+
+            case TrackerField.VolumeFirstDigit:
+                if (IsKeyDigit(e.Key))
+                {
+                    int? value = GetIntFromKey(e.Key);
+                    if (value != null)
+                    {
+                        ChangeNoteVolume(digitIndex: 0, newValue: value.Value);
+                        GlobalCurrentRow++;
+                    }
+                }
+                break;
+
+            case TrackerField.VolumeSecondDigit:
+                if (IsKeyDigit(e.Key))
+                {
+                    int? value = GetIntFromKey(e.Key);
+                    if (value != null)
+                    {
+                        ChangeNoteVolume(digitIndex: 1, newValue: value.Value);
+                        GlobalCurrentRow++;
+                    }
+                }
+                break;
+
+            case TrackerField.VolumeThirdDigit:
+                if (IsKeyDigit(e.Key))
+                {
+                    int? value = GetIntFromKey(e.Key);
+                    if (value != null)
+                    {
+                        ChangeNoteVolume(digitIndex: 2, newValue: value.Value);
+                        GlobalCurrentRow++;
+                    }
+                }
+                break;
+
+            case TrackerField.EffectFirstDigit:
+                break;
+
+            case TrackerField.EffectSecondDigit:
+                break;
+
+            case TrackerField.EffectThirdDigit:
+                break;
+
+            case TrackerField.EffectFourthDigit:
+                break;
+        }
+
         switch (e.Key)
         {
             case Key.Up:
@@ -291,9 +625,9 @@ public class TrackerGrid : FrameworkElement
                 StartPlayback();
                 if (!IsPlaying)
                 {
-                    SetVerticalScrollbarValue(0);
-                    SetCurrentRow(0);
-                    FirstVisibleRow = 0;
+                    //SetVerticalScrollbarValue(0);
+                    //SetCurrentRow(0);
+                    //FirstVisibleRow = 0;
                 }
                 break;
         }
@@ -303,9 +637,14 @@ public class TrackerGrid : FrameworkElement
         e.Handled = true;
     }
 
+    private bool IsKeyDigit(Key key)
+    {
+        return (key >= Key.D0 && key <= Key.D9) || (key >= Key.NumPad0 && key <= Key.NumPad9); // numpad digits
+    }
+
     // === EVENT HANDLING === //
 
-    public event Action PlaybackStarted;
+    public event Action<int> PlaybackStarted;
     public event Action InstrumentSelected;
     public event Action BankSelected;
     public event Action<double> VerticalScrollbarValueChanged;
@@ -317,14 +656,15 @@ public class TrackerGrid : FrameworkElement
 
     public void StartPlayback()
     {
-        PlaybackStarted?.Invoke();
+        PlaybackStarted?.Invoke(currentPatternIndex);
         IsPlaying = !IsPlaying;
     }
 
-    public void SelectInstrument(int value)
+    public void SelectInstrument(int value, int id)
     {
         InstrumentSelected?.Invoke();
         SelectedInstrument = value;
+        SelectedInstrumentID = id;
     }
 
     public void SelectBank(int value)
@@ -351,9 +691,6 @@ public class TrackerGrid : FrameworkElement
         AdvancedColumn?.Invoke(cur, next);
     }
 
-    
-
-    
 
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
@@ -422,7 +759,7 @@ public class TrackerGrid : FrameworkElement
         }
     }
 
-    private int GetRowsInPreviousPattern(int index)
+    public int GetRowsInPreviousPattern(int index)
     {
         if (index == 0) return 0;
         return Patterns[index-1].Rows.Length;
@@ -442,7 +779,7 @@ public class TrackerGrid : FrameworkElement
         if (row < 0)
             return 0;
 
-        if (row - RowOffset == rowsInCurrentPattern)
+        if (row - RowOffset >= rowsInCurrentPattern)
         {
             RowOffset += rowsInCurrentPattern;
             currentPatternIndex++;
@@ -459,21 +796,92 @@ public class TrackerGrid : FrameworkElement
         return row;
     }
 
-    private static int WrapColumn(int column)
+    private int WrapColumn(int column)
     {
-       if (column > 3) // TODO: change to generic number of channels
-            return 3;
+        //Console.WriteLine($"Current Field: {CurrentField}, Current Column {CurrentColumn}");
 
-        if (column < 0)
+        // reset to first channel, first field when going out of bounds
+        if (column < 0) // TODO: make generic
+        {
+            CurrentChannel = 0;
+            CurrentField = TrackerField.Note;
             return 0;
-            
-       return column;
+        }
+
+        if (column > ColumnsPerChannel * ChannelCount - 1) // TODO: make generic
+        {
+            return ColumnsPerChannel * ChannelCount - 1;
+        }
+
+        //if (column < CurrentColumn)
+        //{
+        //    if (column == CurrentChannel * ColumnsPerChannel - 1)
+        //    {
+        //        CurrentChannel--;
+        //        CurrentField = TrackerField.EffectFourthDigit;
+        //    }
+        //    else
+        //    {
+        //        CurrentField--;
+        //    }
+        //}
+        //else if (column > CurrentColumn)
+        //{
+        //    if (CurrentColumn == (CurrentChannel + 1) * ColumnsPerChannel - 1)
+        //    {
+        //        CurrentChannel++;
+        //        CurrentField = TrackerField.Note;
+        //    }
+        //    else
+        //    {
+        //        CurrentField++;
+        //    }
+        //}
+
+        int change = column - CurrentColumn;
+
+        if (change == -1) // moved back once
+        {
+            if (column == CurrentChannel * ColumnsPerChannel - 1)
+            {
+                CurrentChannel--;
+                CurrentField = TrackerField.EffectFourthDigit;
+            }
+            else
+            {
+                CurrentField--;
+            }
+        }
+        else if (change == 1) // moved forward once
+        {
+            if (CurrentColumn == (CurrentChannel + 1) * ColumnsPerChannel - 1)
+            {
+                CurrentChannel++;
+                CurrentField = TrackerField.Note;
+            }
+            else
+            {
+                CurrentField++;
+            }
+        }
+
+        CurrentField = (TrackerField)Math.Clamp((int)CurrentField, 0, ColumnsPerChannel - 1); // TODO: clamp properly
+
+        return column;
     }
 
-    public MidiNoteValueMap? GetMidiNote(Key key)
+    public static MidiNoteValueMap? GetMidiNote(Key key)
     {
         if (KeyboardToMidiNote.Map.TryGetValue(key, out var note))
             return note;
+
+        return null;
+    }
+
+    public static int? GetIntFromKey(Key key)
+    {
+        if (KeyboardToInt.Map.TryGetValue(key, out var value))
+            return value;
 
         return null;
     }
