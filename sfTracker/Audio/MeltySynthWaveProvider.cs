@@ -63,6 +63,10 @@ namespace sfTracker.Audio
                 // (framesRequired - framesDone) determines the number of frames still needed to complete this block
                 int framesThisBlock = Math.Min((int)framesUntilNextTick, framesRequired - framesDone);
 
+                // update volumes of all channels inside Read()
+                // to ensure they are changed before rendering
+                tracker.UpdateAllChannelVolumes();
+
                 // RenderInterleaved fills the float buffer with audio data
                 // the multiplication by 2 is needed to account for stereo data
                 // (framesDone * 2) is the starting index to write to floatBuffer
@@ -80,27 +84,3 @@ namespace sfTracker.Audio
         }
     }
 }
-
-
-//private float pan = 0f; // -1 (left) to +1 (right)
-//private float leftGain = 1f;
-//private float rightGain = 1f;
-
-//public void SetPan(float value)
-//{
-//    pan = Math.Clamp(value, -1f, 1f);
-
-//    // Equal power panning
-//    leftGain = (float)Math.Cos((pan + 1f) * Math.PI / 4f);
-//    rightGain = (float)Math.Sin((pan + 1f) * Math.PI / 4f);
-//}
-
-
-//// 🎚 APPLY PANNING HERE
-//int totalSamples = framesDone * 2;
-
-//for (int i = 0; i < totalSamples; i += 2)
-//{
-//    floatBuffer[i] *= leftGain;       // Left
-//    floatBuffer[i + 1] *= rightGain;  // Right
-//}

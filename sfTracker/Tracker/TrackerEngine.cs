@@ -1,8 +1,6 @@
-﻿using MeltySynth;
+﻿using System;
+using MeltySynth;
 using sfTracker.Playback;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace sfTracker.Tracker
 {
@@ -15,16 +13,16 @@ namespace sfTracker.Tracker
         private readonly int sampleRate;
         private double samplesPerTick;
         public double tickSampleCounter;
-
-        public int BPM { get; private set; } = 125; // TODO: change default BPM
+        public int[] CurrentVolumes { get; set; } // initialise volume arrays
+        public int[] TargetVolumes { get; set; }
+        public int BPM { get; private set; } = 120; // TODO: change default BPM
         public int TicksPerBeat { get; private set; } = 24; // ticks per beat is arbitrary, but 24 has a lot of factors
         public int Speed { get; private set; } = 6; // TODO: change default Speed
-        
         public int CurrentRow { get; set; }
         public int CurrentPattern { get; set; }
         public int CurrentTick { get; set; }
-        public Pattern[] Patterns { get; set; } = new Pattern[2];
-        public Voice[] ActiveVoices { get; private set; } = new Voice[10]; // TODO: make this 10 be a value equal to the max number of channels
+        public Pattern[] Patterns { get; set; } 
+        public Voice[] ActiveVoices { get; set; }
 
         public TrackerEngine(Synthesizer synthesizer, int sampleRate)
         {
@@ -46,7 +44,7 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to set the BPM and recalculate the timing based on this new value.
         /// </summary>
-        /// <param name="bpm">the desired BPM (Beats Per Minute)</param>
+        /// <param name="bpm">the desired BPM (beats per minute)</param>
         public void SetBPM(int bpm)
         {
             BPM = bpm;
@@ -62,6 +60,49 @@ namespace sfTracker.Tracker
         }
 
         /// <summary>
+        /// Method to reset channel volumes.
+        /// This is done to reduce note attack being affected by restarts.
+        /// </summary>
+        public void ResetChannelVolumes()
+        {
+            // for each channel, update its volume to max value
+            for (int channel = 0; channel < ActiveVoices.Length; channel++)
+            {
+                CurrentVolumes[channel] = 100; //TODO: max value is actually 127, make a function to map 0-100 -> 0-127
+                TargetVolumes[channel] = 100;
+                SetVolume(channel, 100);
+            }
+        }
+
+        /// <summary>
+        /// Method to update channel volumes smoothly.
+        /// This prevents volume changes failing to render properly in real time.
+        /// </summary>
+        public void UpdateAllChannelVolumes()
+        {
+            // for each channel, update its volume
+            for (int channel = 0; channel < ActiveVoices.Length; channel++)
+            {
+                int current = CurrentVolumes[channel]; // get selected channel's current volume
+                int target = TargetVolumes[channel]; // get selected channel's target volume
+
+                if (current == target) // do nothing if the volumes haven't changed
+                    continue;
+
+                int diff = target - current; // find difference between volumes
+
+                if (Math.Abs(diff) < 2)
+                    current = target; // if the difference between current and target is 0 or 1, simply set it
+                else 
+                    current += diff / 2; // otherwise gradually update the volume value based on the difference
+
+                // set the volume of the current channel
+                CurrentVolumes[channel] = current;
+                SetVolume(channel, current);
+            }
+        }
+
+        /// <summary>
         /// Method for advancing forward one tick.
         /// </summary>
         private void AdvanceTick()
@@ -72,7 +113,7 @@ namespace sfTracker.Tracker
                 ProcessTickEffects(); // TODO: implement effects functionality
 
             CurrentTick++; // advance to next tick
-            
+
             // based on Speed, handle row change
             if (CurrentTick >= Speed)
             {
@@ -97,30 +138,40 @@ namespace sfTracker.Tracker
         /// </summary>
         /// <param name="channel">the channel (or column) being considered</param>
         /// <param name="note">the MIDI pitch value of the note</param>
+        /// <param name="bank">the bank associated with the instrument being played</param>
         /// <param name="instrument">the instrument being played</param>
         /// <param name="velocity">the volume of the note</param>
         private void TriggerNote(int channel, int note, int bank, int instrument, int velocity)
         {
-            var voice = ActiveVoices[channel]; // get active voice for current channel (column)
+            Voice voice = ActiveVoices[channel]; // get active voice for current channel (column)
 
             if (voice == null) // if no voice active in this channel
-            {
-                // TODO: move to own function
-                SetBank(channel, bank);
-                SetInstrument(channel, instrument);
-                NoteOn(channel, note, velocity);
-            }
+                HandleNoteTrigger(channel, note, bank, instrument, velocity);
             else
-            {
-                //Console.WriteLine($"Channel: {channel}, Note: {voice.Note}");
-                // TODO: move to own function
-                NoteOff(channel, voice.Note);
-                SetBank(channel, bank);
-                SetInstrument(channel, instrument);
-                NoteOn(channel, note, velocity);
-            }
+                HandleNoteTrigger(channel, note, bank, instrument, velocity, voice);
 
             ActiveVoices[channel] = new Voice(note, bank, instrument, velocity); // create a voice and update ActiveVoices array
+        }
+
+        /// <summary>
+        /// Method to handle note being triggered. If an active voice exists, it is stopped here.
+        /// </summary>
+        /// <param name="channel">the channel (or column) being considered</param>
+        /// <param name="note">the MIDI pitch value of the note</param>
+        /// <param name="bank">the bank associated with the instrument being played</param>
+        /// <param name="instrument">the instrument being played</param>
+        /// <param name="velocity">the volume of the note</param>
+        /// <param name="voice">the active voice (optional)</param>
+        private void HandleNoteTrigger(int channel, int note, int bank, int instrument, int velocity, Voice voice = null)
+        {
+            // if voice exists, turn it off
+            if (voice != null)
+                NoteOff(channel, voice.Note);
+
+            // play new note
+            SetBank(channel, bank);
+            SetInstrument(channel, instrument);
+            NoteOn(channel, note, velocity);
         }
 
         /// <summary>
@@ -136,6 +187,8 @@ namespace sfTracker.Tracker
             // trigger each cell in the row
             foreach (var cell in row.Cells)
             {
+                if (cell.Velocity >= 0)
+                    TargetVolumes[cell.Channel] = cell.Velocity;
                 if (cell.Note >= 0)
                     TriggerNote(cell.Channel, cell.Note, cell.Bank, cell.Instrument, cell.Velocity);
 
@@ -188,27 +241,6 @@ namespace sfTracker.Tracker
         }
 
         /// <summary>
-        /// Method to return the instruments available in a given SoundFont.
-        /// </summary>
-        /// <param name="soundfont">the soundfont being considered</param>
-        public static void GetInstrumentsInSoundFont(SoundFont soundfont)
-        {
-            IReadOnlyList<Preset> presets = soundfont.Presets;
-            int maxLength = presets.Max(p => p.Name.Length); // get max length of instrument name for formatting
-
-            // have to go backwards to show order than makes sense
-            for (int i = presets.Count - 1; i >= 0; i--)
-            {
-                Console.WriteLine(
-                    $"Name: {{0,-{maxLength}}} | Bank: {{1,-5}} | Patch: {{2,-5}}", // nice formatting
-                    presets[i].Name,
-                    presets[i].BankNumber,
-                    presets[i].PatchNumber
-                );
-            }
-        }
-
-        /// <summary>
         /// Method to start a MIDI note.
         /// </summary>
         /// <param name="channel">the channel (or column) being considered</param>
@@ -218,7 +250,6 @@ namespace sfTracker.Tracker
         {
             //synthesizer.ProcessMidiMessage(channel, 0xB0, 10, 0); // TODO: implement panning effects (0-127)
             synthesizer.NoteOn(channel, note, velocity);
-            //Console.WriteLine($"Played {CalculateMidiNote(note)} on channel {channel}");
         }
 
         /// <summary>
@@ -229,24 +260,36 @@ namespace sfTracker.Tracker
         public void NoteOff(int channel, int note)
         {
             synthesizer.NoteOff(channel, note);
-            //Console.WriteLine($"Stopped {CalculateMidiNote(note)} on channel {channel}");
         }
 
         /// <summary>
         /// Method to select the instrument which should be assigned to the MIDI channel.
         /// </summary>
-        /// <param name="channel">the channel (or column) being considered</param>
+        /// <param name="channel">the channel being considered</param>
         /// <param name="programNumber">the program number (instrument) in the SoundFont</param>
         public void SetInstrument(int channel, int programNumber)
         {
             synthesizer.ProcessMidiMessage(channel, 0xC0, programNumber, 0);
-            //Console.WriteLine($"Loaded {soundfont.Presets[programNumber]} from {soundfont.Info.BankName} soundfont.");
         }
 
+        /// <summary>
+        /// Method to select the bank which should be assigned to the MIDI channel.
+        /// </summary>
+        /// <param name="channel">the channel being considered</param>
+        /// <param name="bankNumber">the bank number in the SoundFont</param>
         public void SetBank(int channel, int bankNumber)
         {
-            synthesizer.ProcessMidiMessage(channel, 0xB0, 0, bankNumber);  // Set the bank number
-            //Console.WriteLine($"Loaded {soundfont.Presets[programNumber]} from {soundfont.Info.BankName} soundfont.");
+            synthesizer.ProcessMidiMessage(channel, 0xB0, 0, bankNumber);
+        }
+
+        /// <summary>
+        /// Method to set the velocity (volume) of the MIDI channel.
+        /// </summary>
+        /// <param name="channel">the channel being considered</param>
+        /// <param name="volume">the desired velocity (volume)</param>
+        public void SetVolume(int channel, int volume)
+        {
+            synthesizer.ProcessMidiMessage(channel, 0xB0, 11, volume);
         }
 
         private static void ProcessTickEffects()
@@ -254,6 +297,16 @@ namespace sfTracker.Tracker
             // volume, vibrato, portamento, etc. here
         }
 
+
+        /// <summary>
+        /// Method to trigger note temporarily. TODO: this doesn't work as expected, decide if should keep
+        /// </summary>
+        /// <param name="channel">the channel (or column) being considered</param>
+        /// <param name="note">the MIDI pitch value of the note</param>
+        /// <param name="bank">the bank associated with the instrument being played</param>
+        /// <param name="instrument">the instrument being played</param>
+        /// <param name="velocity">the volume of the note</param>
+        /// <param name="trigger">optional bool determining whether to trigger the note or stop it</param>
         public void TriggerNoteWithKeyboard(int channel, int note, int bank, int instrument, int velocity, bool trigger = false)
         {
             if (trigger) {
