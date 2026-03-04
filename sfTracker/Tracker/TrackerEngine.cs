@@ -1,6 +1,7 @@
-﻿using System;
-using MeltySynth;
+﻿using MeltySynth;
+using sfTracker.Common;
 using sfTracker.Playback;
+using System;
 
 namespace sfTracker.Tracker
 {
@@ -68,9 +69,9 @@ namespace sfTracker.Tracker
             // for each channel, update its volume to max value
             for (int channel = 0; channel < ActiveVoices.Length; channel++)
             {
-                CurrentVolumes[channel] = 100; //TODO: max value is actually 127, make a function to map 0-100 -> 0-127
-                TargetVolumes[channel] = 100;
-                SetVolume(channel, 100);
+                CurrentVolumes[channel] = ProgramConstants.MaxVolume;
+                TargetVolumes[channel] = ProgramConstants.MaxVolume;
+                SetVolume(channel, ProgramConstants.MaxVolume);
             }
         }
 
@@ -136,11 +137,6 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to trigger a note.
         /// </summary>
-        /// <param name="channel">the channel (or column) being considered</param>
-        /// <param name="note">the MIDI pitch value of the note</param>
-        /// <param name="bank">the bank associated with the instrument being played</param>
-        /// <param name="instrument">the instrument being played</param>
-        /// <param name="velocity">the volume of the note</param>
         private void TriggerNote(int channel, int note, int bank, int instrument, int velocity)
         {
             Voice voice = ActiveVoices[channel]; // get active voice for current channel (column)
@@ -156,22 +152,16 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to handle note being triggered. If an active voice exists, it is stopped here.
         /// </summary>
-        /// <param name="channel">the channel (or column) being considered</param>
-        /// <param name="note">the MIDI pitch value of the note</param>
-        /// <param name="bank">the bank associated with the instrument being played</param>
-        /// <param name="instrument">the instrument being played</param>
-        /// <param name="velocity">the volume of the note</param>
-        /// <param name="voice">the active voice (optional)</param>
         private void HandleNoteTrigger(int channel, int note, int bank, int instrument, int velocity, Voice voice = null)
         {
             // if voice exists, turn it off
             if (voice != null)
                 NoteOff(channel, voice.Note);
 
-            // play new note
+            // play new note, note that velocity must be scaled from the tracker display to the range that MIDI supports (0-127)
             SetBank(channel, bank);
             SetInstrument(channel, instrument);
-            NoteOn(channel, note, velocity);
+            NoteOn(channel, note, (int)(velocity * ProgramConstants.MaxVolume / ProgramConstants.MaxDisplayVolume));
         }
 
         /// <summary>
@@ -215,7 +205,6 @@ namespace sfTracker.Tracker
         /// Method to advance the tracker by a specific number of frames.
         /// Frames refer to the number of audio samples
         /// </summary>
-        /// <param name="frames">the number of audio samples</param>
         public void Advance(int frames)
         {
             tickSampleCounter += frames; // update number of samples current tick has handled so far
@@ -232,7 +221,6 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to return the MIDI note being triggered.
         /// </summary>
-        /// <param name="note">the MIDI pitch of the note</param>
         public static string CalculateMidiNote(int note)
         {
             string[] notes = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
@@ -243,9 +231,6 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to start a MIDI note.
         /// </summary>
-        /// <param name="channel">the channel (or column) being considered</param>
-        /// <param name="note">the MIDI pitch value of the note</param>
-        /// <param name="velocity">the volume of the note</param>
         public void NoteOn(int channel, int note, int velocity)
         {
             //synthesizer.ProcessMidiMessage(channel, 0xB0, 10, 0); // TODO: implement panning effects (0-127)
@@ -255,8 +240,6 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to stop a MIDI note.
         /// </summary>
-        /// <param name="channel">the channel (or column) being considered</param>
-        /// <param name="note">the MIDI pitch value of the note</param>
         public void NoteOff(int channel, int note)
         {
             synthesizer.NoteOff(channel, note);
@@ -265,8 +248,6 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to select the instrument which should be assigned to the MIDI channel.
         /// </summary>
-        /// <param name="channel">the channel being considered</param>
-        /// <param name="programNumber">the program number (instrument) in the SoundFont</param>
         public void SetInstrument(int channel, int programNumber)
         {
             synthesizer.ProcessMidiMessage(channel, 0xC0, programNumber, 0);
@@ -275,8 +256,6 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to select the bank which should be assigned to the MIDI channel.
         /// </summary>
-        /// <param name="channel">the channel being considered</param>
-        /// <param name="bankNumber">the bank number in the SoundFont</param>
         public void SetBank(int channel, int bankNumber)
         {
             synthesizer.ProcessMidiMessage(channel, 0xB0, 0, bankNumber);
@@ -285,8 +264,6 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to set the velocity (volume) of the MIDI channel.
         /// </summary>
-        /// <param name="channel">the channel being considered</param>
-        /// <param name="volume">the desired velocity (volume)</param>
         public void SetVolume(int channel, int volume)
         {
             synthesizer.ProcessMidiMessage(channel, 0xB0, 11, volume);
@@ -301,12 +278,6 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to trigger note temporarily. TODO: this doesn't work as expected, decide if should keep
         /// </summary>
-        /// <param name="channel">the channel (or column) being considered</param>
-        /// <param name="note">the MIDI pitch value of the note</param>
-        /// <param name="bank">the bank associated with the instrument being played</param>
-        /// <param name="instrument">the instrument being played</param>
-        /// <param name="velocity">the volume of the note</param>
-        /// <param name="trigger">optional bool determining whether to trigger the note or stop it</param>
         public void TriggerNoteWithKeyboard(int channel, int note, int bank, int instrument, int velocity, bool trigger = false)
         {
             if (trigger) {

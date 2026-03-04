@@ -1,5 +1,5 @@
-﻿using MeltySynth;
-using sfTracker.Audio;
+﻿using sfTracker.Audio;
+using sfTracker.Common;
 using sfTracker.Controls;
 using sfTracker.Playback;
 using sfTracker.Tracker;
@@ -8,9 +8,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
-using System.Net;
-using System.Text.Json.Serialization;
-using System.Threading.Channels;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -60,7 +57,7 @@ public class TrackerGrid : FrameworkElement
         ColumnWidth =
             NoteWidth +                 // note cell
             DigitWidth * 3 +            // instrument cell (3 digits)
-            DigitWidth * 3 +            // volume cell (3 digits)
+            DigitWidth * 2 +            // volume cell (2 digits)
             DigitWidth * 4 +            // effects cell (1 char + 3 digits)
             ChannelInnerPadding * 4;    // 4 paddings (between notes/instrs, instrs/volumes, volumes/effects, 1/2 either side)
 
@@ -82,8 +79,6 @@ public class TrackerGrid : FrameworkElement
         get => (IList<Pattern>)GetValue(PatternProperty);
         set => SetValue(PatternProperty, value);
     }
-
-    //
 
     public static readonly DependencyProperty CurrentRowPositionProperty = DependencyProperty.Register(
         nameof(CurrentRowPosition),
@@ -194,7 +189,7 @@ public class TrackerGrid : FrameworkElement
                     if (absoluteRow == GlobalCurrentRow && channel == CurrentChannel)
                     {
                         HighlightCurrentCell(context, startChannelX, cols.instrFirstX, cols.instrSecondX, cols.instrThirdX, cols.volFirstX,
-                            cols.volSecondX, cols.volThirdX, cols.effectFirstX, cols.effectSecondX, cols.effectThirdX, cols.effectFourthX, y
+                            cols.volSecondX, cols.effectFirstX, cols.effectSecondX, cols.effectThirdX, cols.effectFourthX, y
                         );
                     }
                 }
@@ -216,7 +211,7 @@ public class TrackerGrid : FrameworkElement
     }
 
     private void HighlightCurrentCell(DrawingContext context, double channelX, double instrFirstX, double instrSecondX,
-        double instrThirdX, double volFirstX, double volSecondX, double volThirdX, double effectFirstX, double effectSecondX,
+        double instrThirdX, double volFirstX, double volSecondX, double effectFirstX, double effectSecondX,
         double effectThirdX, double effectFourthX, double y
     )
     {
@@ -267,14 +262,6 @@ public class TrackerGrid : FrameworkElement
                     Brushes.CurrentCellHighlight,
                     null,
                     new Rect(volSecondX, y, DigitWidth, RowHeight)
-                );
-                break;
-
-            case TrackerField.VolumeThirdDigit:
-                context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
-                    null,
-                    new Rect(volThirdX, y, DigitWidth, RowHeight)
                 );
                 break;
 
@@ -344,8 +331,8 @@ public class TrackerGrid : FrameworkElement
 
     public static string GetVolumeTextToRender(int volume)
     {
-        if (volume == -1) return "---";
-        return volume.ToString().PadLeft(3, '0');
+        if (volume == -1) return "--";
+        return volume.ToString().PadLeft(2, '0');
     }
 
     private string GetRowString(int absoluteRow)
@@ -378,7 +365,7 @@ public class TrackerGrid : FrameworkElement
             bank: SelectedBank,
             instrument: SelectedInstrument == -1 ? 0 : SelectedInstrument,
             instrumentID: SelectedInstrumentID == -1 ? 0 : SelectedInstrumentID,
-            volume: 100 // TODO: this could be 127 but i think 100 makes more sense, maybe just 99 to reduce clutter
+            volume: ProgramConstants.MaxDisplayVolume
         );
         GlobalCurrentRow++;
     }
@@ -398,20 +385,18 @@ public class TrackerGrid : FrameworkElement
         if (preset == null) { return; } // TODO: update to make instrument colour red if no preset found
 
         Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument = preset.Instrument;
-        //GlobalCurrentRow++;
     }
 
     private void ChangeNoteVolume(int digitIndex, int newValue)
     {
         int volume = Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity;
         int updatedVolume = UpdateNumberValue(
-            volume == -1 ? "000" : volume.ToString().PadLeft(3, '0'),
+            volume == -1 ? "00" : volume.ToString().PadLeft(2, '0'),
             digitIndex,
             newValue
         );
         Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
         Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity = updatedVolume;
-        //GlobalCurrentRow++;
     }
 
     private int UpdateNumberValue(string idString, int index, int newDigit)
@@ -459,7 +444,6 @@ public class TrackerGrid : FrameworkElement
                 break;
             case TrackerField.VolumeFirstDigit:
             case TrackerField.VolumeSecondDigit:
-            case TrackerField.VolumeThirdDigit:
                 // remove volume values only
                 SetNote(
                     pattern: currentPatternIndex,
@@ -556,18 +540,6 @@ public class TrackerGrid : FrameworkElement
                     if (value != null)
                     {
                         ChangeNoteVolume(digitIndex: 1, newValue: value.Value);
-                        GlobalCurrentRow++;
-                    }
-                }
-                break;
-
-            case TrackerField.VolumeThirdDigit:
-                if (IsKeyDigit(e.Key))
-                {
-                    int? value = GetIntFromKey(e.Key);
-                    if (value != null)
-                    {
-                        ChangeNoteVolume(digitIndex: 2, newValue: value.Value);
                         GlobalCurrentRow++;
                     }
                 }

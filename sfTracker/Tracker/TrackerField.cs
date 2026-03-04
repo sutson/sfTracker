@@ -8,7 +8,6 @@
         InstrumentThirdDigit,
         VolumeFirstDigit,
         VolumeSecondDigit,
-        VolumeThirdDigit,
         EffectFirstDigit,
         EffectSecondDigit,
         EffectThirdDigit,
