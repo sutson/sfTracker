@@ -17,16 +17,16 @@ namespace sfTracker.GUI
 
         public static void Init()
         {
-            FourthRowHighlight = new SolidColorBrush(Color.FromArgb(15, 255, 255, 255));
+            FourthRowHighlight = new SolidColorBrush(Color.FromArgb(5, 255, 255, 255));
             FourthRowHighlight.Freeze();
 
-            InactiveFourthRowHighlight = new SolidColorBrush(Color.FromArgb(5, 255, 255, 255));
+            InactiveFourthRowHighlight = new SolidColorBrush(Color.FromArgb(3, 255, 255, 255));
             InactiveFourthRowHighlight.Freeze();
 
-            CurrentCellHighlight = new SolidColorBrush(Color.FromArgb(80, 0, 120, 215));
+            CurrentCellHighlight = new SolidColorBrush(Color.FromArgb(120, 0, 120, 215));
             CurrentCellHighlight.Freeze();
 
-            CurrentRowHighlight = new SolidColorBrush(Color.FromArgb(40, 10, 255, 255));
+            CurrentRowHighlight = new SolidColorBrush(Color.FromArgb(50, 10, 255, 255));
             CurrentRowHighlight.Freeze();
 
             ActivePatternBrush = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
