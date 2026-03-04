@@ -35,18 +35,17 @@ namespace sfTracker.Audio
 
         /// <summary>
         /// Method to start or stop the tracker.
-        /// TODO: currently this just accepts keyboard input, obviously this should change.
         /// </summary>
-        public void Start()
+        public void Start(int currentPattern)
         {
             if (isPlayingAudio)
             {
                 StopAudio();
-                ResetTracker(); // reset tracker TODO: need to reset to the start of current pattern
             }
             else
             {
                 PlayAudio();
+                ResetTracker(currentPattern); // reset tracker
             }
         }
 
@@ -73,16 +72,16 @@ namespace sfTracker.Audio
 
         /// <summary>
         /// Method to reset the tracker by moving back to the start of the pattern.
-        /// TODO: need to reset to the start of the CURRENT pattern when multiple patterns exist
         /// </summary>
-        public void ResetTracker()
+        public void ResetTracker(int currentPattern)
         {
             tracker.CurrentRow = 0;  // reset row
-            tracker.CurrentPattern = 0; // reset pattern
+            tracker.CurrentPattern = currentPattern; // reset pattern
             tracker.CurrentTick = 0;  // reset tick counter
             tracker.tickSampleCounter = 0;  // reset sample counter
 
             synthesizer.Reset(); // reset MeltySynth Synthesizer
+            tracker.ResetChannelVolumes(); // reset channel volumes
         }
 
         /// <summary>
