@@ -2,6 +2,7 @@
 using sfTracker.Common;
 using sfTracker.Playback;
 using System;
+using sfTracker.Controls;
 
 namespace sfTracker.Tracker
 {
@@ -16,6 +17,8 @@ namespace sfTracker.Tracker
         public double tickSampleCounter;
         public int[] CurrentVolumes { get; set; } // initialise volume arrays
         public int[] TargetVolumes { get; set; }
+        public PanEffect[] CurrentPannings { get; set; } // initialise panning arrays
+        public PanEffect[] TargetPannings { get; set; }
         public int BPM { get; private set; } = 120; // TODO: change default BPM
         public int TicksPerBeat { get; private set; } = 24; // ticks per beat is arbitrary, but 24 has a lot of factors
         public int Speed { get; private set; } = 6; // TODO: change default Speed
@@ -75,6 +78,20 @@ namespace sfTracker.Tracker
         }
 
         /// <summary>
+        /// Method to reset channel pannings.
+        /// This is done to reduce note attack being affected by restarts.
+        /// </summary>
+        public void ResetChannelPannings()
+        {
+            // for each channel, update its panning to default value
+            for (int channel = 0; channel < ActiveVoices.Length; channel++)
+            {
+                CurrentPannings[channel] = new PanEffect(direction: null, value: -1);
+                TargetPannings[channel] = new PanEffect(direction: null, value: -1);
+            }
+        }
+
+        /// <summary>
         /// Method to update channel volumes smoothly.
         /// This prevents volume changes failing to render properly in real time.
         /// </summary>
@@ -99,6 +116,38 @@ namespace sfTracker.Tracker
                 // set the volume of the current channel
                 CurrentVolumes[channel] = current;
                 SetVolume(channel, current);
+            }
+        }
+
+        /// <summary>
+        /// Method to update channel pannings smoothly.
+        /// This prevents panning changes failing to render properly in real time.
+        /// </summary>
+        public void UpdateAllChannelPannings()
+        {
+            // for each channel, update its panning
+            for (int channel = 0; channel < ActiveVoices.Length; channel++)
+            {
+                PanEffect current = CurrentPannings[channel]; // get selected channel's current panning data
+                PanEffect target = TargetPannings[channel]; // get selected channel's target panning data
+                
+                // do nothing if the panning has no values set
+                if (current.Direction == null && target.Direction == null) { continue; }
+
+                // do nothing if the current and target are the same
+                if (current.Direction == target.Direction && current.Value == target.Value) { continue; }
+
+                current.Direction = target.Direction; // update panning direction to target value
+
+                int diff = current.Value - target.Value;
+                if (Math.Abs(diff) < 2)
+                    current.Value = target.Value; // if the difference between current and target is 0 or 1, simply set it
+                else
+                    current.Value -= diff / 4; // otherwise gradually update the panning value based on the difference
+
+                // set the panning of the current channel
+                CurrentPannings[channel] = current;
+                SetPanning(channel, current);
             }
         }
 
@@ -136,17 +185,17 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to trigger a note.
         /// </summary>
-        private void TriggerNote(int channel, int note, int bank, int instrument, int velocity)
+        private void TriggerNote(int channel, int note, int bank, int instrument, int velocity, PanEffect panning)
         {
             Voice voice = ActiveVoices[channel]; // get active voice for current channel (column)
 
             if (voice == null) // if no voice active in this channel
             {
                 voice = new Voice(-1, -1, -1, -1); // hack to get the first note to play at full volume
-                HandleNoteTrigger(channel, note, bank, instrument, velocity, voice);
+                HandleNoteTrigger(channel, note, bank, instrument, velocity, panning, voice);
             }
             else
-                HandleNoteTrigger(channel, note, bank, instrument, velocity, voice);
+                HandleNoteTrigger(channel, note, bank, instrument, velocity, panning, voice);
 
             ActiveVoices[channel] = new Voice(note, bank, instrument, velocity); // create a voice and update ActiveVoices array
         }
@@ -154,7 +203,7 @@ namespace sfTracker.Tracker
         /// <summary>
         /// Method to handle note being triggered. If an active voice exists, it is stopped here.
         /// </summary>
-        private void HandleNoteTrigger(int channel, int note, int bank, int instrument, int velocity, Voice voice)
+        private void HandleNoteTrigger(int channel, int note, int bank, int instrument, int velocity, PanEffect panning, Voice voice)
         {
             // if voice exists, turn it off
             // also if voice exists and stop note is present, turn off active voice
@@ -165,12 +214,14 @@ namespace sfTracker.Tracker
                 NoteOff(channel, voice.Note);
                 SetBank(channel, bank);
                 SetInstrument(channel, instrument);
+                SetPanning(channel, panning);
                 NoteOn(channel, note, velocity);
             }
 
             // play note
             SetBank(channel, bank);
             SetInstrument(channel, instrument);
+            SetPanning(channel, panning);
             NoteOn(channel, note, velocity);
         }
 
@@ -188,11 +239,17 @@ namespace sfTracker.Tracker
             foreach (var cell in row.Cells)
             {
                 int scaledVelocity = (int)(cell.Velocity * ProgramConstants.MaxVolume / ProgramConstants.MaxDisplayVolume);
+                PanEffect scaledPanning = new PanEffect(
+                    direction: cell.Panning.Direction,
+                    value: (int)(cell.Panning.Value * ProgramConstants.DefaultPanning / ProgramConstants.MaxDisplayPanning)
+                );
 
                 if (scaledVelocity >= 0)
                     TargetVolumes[cell.Channel] = scaledVelocity;
+                if (scaledPanning.Value >= 0)
+                    TargetPannings[cell.Channel] = scaledPanning;
                 if (cell.Note >= 0 || cell.Note == ProgramConstants.StopNote)
-                    TriggerNote(cell.Channel, cell.Note, cell.Bank, cell.Instrument, scaledVelocity);
+                    TriggerNote(cell.Channel, cell.Note, cell.Bank, cell.Instrument, scaledVelocity, scaledPanning);
 
                 // TODO: effect parsing
             }
@@ -245,7 +302,6 @@ namespace sfTracker.Tracker
         /// </summary>
         public void NoteOn(int channel, int note, int velocity)
         {
-            //synthesizer.ProcessMidiMessage(channel, 0xB0, 10, 0); // TODO: implement panning effects (0-127)
             synthesizer.NoteOn(channel, note, velocity);
         }
 
@@ -279,6 +335,18 @@ namespace sfTracker.Tracker
         public void SetVolume(int channel, int volume)
         {
             synthesizer.ProcessMidiMessage(channel, 0xB0, 11, volume);
+        }
+
+        /// <summary>
+        /// Method to set the panning of the MIDI channel.
+        /// 0 = panned fully left
+        /// 127 = panned fully right
+        /// </summary>
+        public void SetPanning(int channel, PanEffect panning)
+        {
+            if (panning.Value < 0) { return; }
+            int panningAmount = panning.Value * (panning.Direction == EffectType.PanningLeft ? -1 : 1);
+            synthesizer.ProcessMidiMessage(channel, 0xB0, 10, (int)(ProgramConstants.DefaultPanning + panningAmount));
         }
 
         private static void ProcessTickEffects()

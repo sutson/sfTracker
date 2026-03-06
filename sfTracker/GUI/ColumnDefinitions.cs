@@ -10,10 +10,9 @@ namespace sfTracker.GUI
         public double instrThirdX { get; private set; }
         public double volFirstX { get; private set; }
         public double volSecondX { get; private set; }
+        public double effectTypeX { get; private set; }
         public double effectFirstX { get; private set; }
         public double effectSecondX { get; private set; }
-        public double effectThirdX { get; private set; }
-        public double effectFourthX { get; private set; }
 
         private double NoteWidth { get; set; }
         private double DigitWidth { get; set; }
@@ -31,10 +30,9 @@ namespace sfTracker.GUI
             volFirstX = instrThirdX + digitWidth + padding;
             volSecondX = volFirstX + digitWidth;
 
-            effectFirstX = volSecondX + digitWidth + padding;
+            effectTypeX = volSecondX + digitWidth + padding;
+            effectFirstX = effectTypeX + digitWidth;
             effectSecondX = effectFirstX + digitWidth;
-            effectThirdX = effectSecondX + digitWidth;
-            effectFourthX = effectThirdX + digitWidth;
 
             NoteWidth = noteWidth;
             DigitWidth = digitWidth;
@@ -44,16 +42,20 @@ namespace sfTracker.GUI
         public List<double> GetColumnCoordinates()
         {
             return [
-                noteX - Padding/2, instrFirstX, instrSecondX, instrThirdX, volFirstX,
-                volSecondX, effectFirstX, effectSecondX, effectThirdX, effectFourthX
+                noteX - Padding/2,
+                instrFirstX, instrSecondX, instrThirdX,
+                volFirstX, volSecondX,
+                effectTypeX, effectFirstX, effectSecondX
             ];
         }
 
         public List<double> GetColumnWidths()
         {
             return [
-                NoteWidth, DigitWidth, DigitWidth, DigitWidth, DigitWidth,
-                DigitWidth, DigitWidth, DigitWidth, DigitWidth, DigitWidth
+                NoteWidth,                          // note 
+                DigitWidth, DigitWidth, DigitWidth, // instrument (3 digits)
+                DigitWidth, DigitWidth,             // volume (2 digits)
+                DigitWidth, DigitWidth, DigitWidth  // effects (1 type char + 2 digits)
             ];
         }
     }

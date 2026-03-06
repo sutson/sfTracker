@@ -66,6 +66,7 @@ namespace sfTracker.Audio
                 // update volumes of all channels inside Read()
                 // to ensure they are changed before rendering
                 tracker.UpdateAllChannelVolumes();
+                tracker.UpdateAllChannelPannings();
 
                 // RenderInterleaved fills the float buffer with audio data
                 // the multiplication by 2 is needed to account for stereo data

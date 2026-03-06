@@ -20,7 +20,7 @@ public class TrackerGrid : FrameworkElement
     private int SelectedBank = -1;
     private int SelectedInstrument = -1;
     private int SelectedInstrumentID = -1;
-    private int MaxRenderHeight = 500;
+    private readonly int MaxRenderHeight = 500;
 
     public int CurrentRow = 0;
     public int CurrentColumn = 0;
@@ -58,7 +58,7 @@ public class TrackerGrid : FrameworkElement
             NoteWidth +                 // note cell
             DigitWidth * 3 +            // instrument cell (3 digits)
             DigitWidth * 2 +            // volume cell (2 digits)
-            DigitWidth * 4 +            // effects cell (1 char + 3 digits)
+            DigitWidth * 3 +            // effects cell (1 char + 2 digits)
             ChannelInnerPadding * 4;    // 4 paddings (between notes/instrs, instrs/volumes, volumes/effects, 1/2 either side)
 
         Brushes.Init();
@@ -178,18 +178,21 @@ public class TrackerGrid : FrameworkElement
                         new Point(cols.volFirstX, y)
                     );
 
-                    //string effectText = $"{cell.EffectCode}{cell.EffectValue:D3}";
-                    string effectText = $"----";
                     context.DrawText(
-                        RenderText(effectText, brush),
+                        RenderText(GetEffectTypeTextToRender(cell.Panning), brush),
+                        new Point(cols.effectTypeX, y)
+                    );
+
+                    context.DrawText(
+                        RenderText(GetEffectTextToRender(cell.Panning.Value), brush),
                         new Point(cols.effectFirstX, y)
                     );
 
                     // highlight current cell
                     if (absoluteRow == GlobalCurrentRow && channel == CurrentChannel)
                     {
-                        HighlightCurrentCell(context, startChannelX, cols.instrFirstX, cols.instrSecondX, cols.instrThirdX, cols.volFirstX,
-                            cols.volSecondX, cols.effectFirstX, cols.effectSecondX, cols.effectThirdX, cols.effectFourthX, y
+                        HighlightCurrentCell(context, startChannelX, cols.instrFirstX, cols.instrSecondX, cols.instrThirdX,
+                            cols.volFirstX, cols.volSecondX, cols.effectTypeX, cols.effectFirstX, cols.effectSecondX, y
                         );
                     }
                 }
@@ -210,9 +213,9 @@ public class TrackerGrid : FrameworkElement
             ));
     }
 
-    private void HighlightCurrentCell(DrawingContext context, double channelX, double instrFirstX, double instrSecondX,
-        double instrThirdX, double volFirstX, double volSecondX, double effectFirstX, double effectSecondX,
-        double effectThirdX, double effectFourthX, double y
+    private void HighlightCurrentCell(
+        DrawingContext context, double channelX, double instrFirstX, double instrSecondX, double instrThirdX,
+        double volFirstX, double volSecondX, double effectTypeX, double effectFirstX, double effectSecondX, double y
     )
     {
         switch (CurrentField)
@@ -265,6 +268,14 @@ public class TrackerGrid : FrameworkElement
                 );
                 break;
 
+            case TrackerField.EffectType:
+                context.DrawRectangle(
+                    Brushes.CurrentCellHighlight,
+                    null,
+                    new Rect(effectTypeX, y, DigitWidth, RowHeight)
+                );
+                break;
+
             case TrackerField.EffectFirstDigit:
                 context.DrawRectangle(
                     Brushes.CurrentCellHighlight,
@@ -278,22 +289,6 @@ public class TrackerGrid : FrameworkElement
                     Brushes.CurrentCellHighlight,
                     null,
                     new Rect(effectSecondX, y, DigitWidth, RowHeight)
-                );
-                break;
-
-            case TrackerField.EffectThirdDigit:
-                context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
-                    null,
-                    new Rect(effectThirdX, y, DigitWidth, RowHeight)
-                );
-                break;
-
-            case TrackerField.EffectFourthDigit:
-                context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
-                    null,
-                    new Rect(effectFourthX, y, DigitWidth, RowHeight)
                 );
                 break;
         }
@@ -336,6 +331,18 @@ public class TrackerGrid : FrameworkElement
         return volume.ToString().PadLeft(2, '0');
     }
 
+    public static string GetEffectTypeTextToRender(PanEffect effect)
+    {
+        if (effect.Direction == null) return "-";
+        return effect.Direction == EffectType.PanningLeft ? "L" : "R";
+    }
+
+    public static string GetEffectTextToRender(int value)
+    {
+        if (value == -1) return "--";
+        return value.ToString().PadLeft(2, '0');
+    }
+
     private string GetRowString(int absoluteRow)
     {
         int rowText = absoluteRow;
@@ -366,7 +373,8 @@ public class TrackerGrid : FrameworkElement
             bank: SelectedBank,
             instrument: SelectedInstrument == -1 ? 0 : SelectedInstrument,
             instrumentID: SelectedInstrumentID == -1 ? 0 : SelectedInstrumentID,
-            volume: ProgramConstants.MaxDisplayVolume
+            volume: ProgramConstants.MaxDisplayVolume,
+            panning: ProgramConstants.DefaultPanEffect
         );
         GlobalCurrentRow++;
     }
@@ -381,7 +389,8 @@ public class TrackerGrid : FrameworkElement
             bank: -1,
             instrument: -1,
             instrumentID: -1,
-            volume: -1
+            volume: -1,
+            panning: ProgramConstants.DefaultPanEffect
         );
         GlobalCurrentRow++;
     }
@@ -395,6 +404,12 @@ public class TrackerGrid : FrameworkElement
         int updatedValue = Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note + (int)change;
         if (updatedValue < ProgramConstants.MinMidiNoteValue || updatedValue > ProgramConstants.MaxMidiNoteValue) { return; }
         Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = updatedValue;
+    }
+
+    private void HandleEffectTypeChange(PanEffect effect)
+    {
+        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
+        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning = effect;
     }
 
     private void ChangeNoteInstrument(int digitIndex, int newValue)
@@ -430,6 +445,18 @@ public class TrackerGrid : FrameworkElement
         Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity = updatedVolume;
     }
 
+    private void ChangeNotePanning(int digitIndex, int newValue)
+    {
+        int panning = Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Value;
+        int updatedPanning = UpdateNumberValue(
+            panning == 0 ? "00" : panning.ToString().PadLeft(2, '0'),
+            digitIndex,
+            newValue
+        );
+        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
+        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Value = updatedPanning;
+    }
+
     private int UpdateNumberValue(string idString, int index, int newDigit)
     {
         var chars = idString.ToCharArray();
@@ -437,9 +464,7 @@ public class TrackerGrid : FrameworkElement
         return int.Parse(new string(chars));
     }
 
-
-
-    private void DeleteNote(bool IsBackspace = false)
+    private void HandleDeleteField(bool IsBackspace = false)
     {
         switch (CurrentField)
         {
@@ -453,26 +478,14 @@ public class TrackerGrid : FrameworkElement
                     bank: -1,
                     instrument: -1,
                     instrumentID: -1,
-                    volume: -1
+                    volume: -1,
+                    panning: new PanEffect(direction: null, value: -1)
                 );
                 break;
             case TrackerField.InstrumentFirstDigit:
             case TrackerField.InstrumentSecondDigit:
             case TrackerField.InstrumentThirdDigit:
-                // remove instrument values only
-                //SetNote(
-                //    pattern: currentPatternIndex,
-                //    row: PatternCurrentRow,
-                //    channel: CurrentChannel,
-                //    note: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
-                //    bank: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
-                //    instrument: -1,
-                //    instrumentID: -1,
-                //    volume: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity
-                //);
-
-                // TODO: decide if i want this to even be possible, because it defaults to 000 anyway when set to -1
-                break;
+                return; // don't allow deletion of instrument (defaults to 0 anyway)
             case TrackerField.VolumeFirstDigit:
             case TrackerField.VolumeSecondDigit:
                 // remove volume values only
@@ -484,17 +497,27 @@ public class TrackerGrid : FrameworkElement
                     bank: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
                     instrument: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
                     instrumentID: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
-                    volume: -1
+                    volume: -1,
+                    panning: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning
                 );
                 break;
 
+            case TrackerField.EffectType:
             case TrackerField.EffectFirstDigit:
             case TrackerField.EffectSecondDigit:
-            case TrackerField.EffectThirdDigit:
-            case TrackerField.EffectFourthDigit:
-                // remove effect values only
+                // remove effect type and digits
+                SetNote(
+                    pattern: currentPatternIndex,
+                    row: PatternCurrentRow,
+                    channel: CurrentChannel,
+                    note: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
+                    bank: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
+                    instrument: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
+                    instrumentID: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
+                    volume: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity,
+                    panning: ProgramConstants.DefaultPanEffect
+                );
                 break;
-
         }
 
         if (IsBackspace)
@@ -503,7 +526,7 @@ public class TrackerGrid : FrameworkElement
             GlobalCurrentRow++;
     }
 
-    private void SetNote(int pattern, int row, int channel, int note, int bank, int instrument, int instrumentID, int volume)
+    private void SetNote(int pattern, int row, int channel, int note, int bank, int instrument, int instrumentID, int volume, PanEffect panning)
     {
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Channel = channel;
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Note = note;
@@ -511,6 +534,7 @@ public class TrackerGrid : FrameworkElement
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Instrument = instrument;
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].InstrumentID = instrumentID;
         Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Velocity = volume;
+        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Panning = panning;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -581,17 +605,38 @@ public class TrackerGrid : FrameworkElement
                     }
                 }
                 break;
+            
+            case TrackerField.EffectType:
+                if (IsKeyDigit(e.Key)) { return; }
+
+                if (e.Key == Key.L)
+                    HandleEffectTypeChange(new PanEffect(direction: EffectType.PanningLeft, value: 0));
+                else if (e.Key == Key.R)
+                    HandleEffectTypeChange(new PanEffect(direction: EffectType.PanningRight, value: 0));
+                break;
 
             case TrackerField.EffectFirstDigit:
+                if (IsKeyDigit(e.Key))
+                {
+                    int? value = GetIntFromKey(e.Key);
+                    if (value != null && value * 10 <= ProgramConstants.MaxDisplayPanning) // do not allow changes over max panning display value
+                    {
+                        ChangeNotePanning(digitIndex: 0, newValue: value.Value);
+                        GlobalCurrentRow++;
+                    }
+                }
                 break;
 
             case TrackerField.EffectSecondDigit:
-                break;
-
-            case TrackerField.EffectThirdDigit:
-                break;
-
-            case TrackerField.EffectFourthDigit:
+                if (IsKeyDigit(e.Key))
+                {
+                    int? value = GetIntFromKey(e.Key);
+                    if (value != null)
+                    {
+                        ChangeNotePanning(digitIndex: 1, newValue: value.Value);
+                        GlobalCurrentRow++;
+                    }
+                }
                 break;
         }
 
@@ -614,7 +659,7 @@ public class TrackerGrid : FrameworkElement
                 break;
 
             case Key.Delete:
-                DeleteNote();
+                HandleDeleteField();
                 break;
 
             case Key.Oem3: // '@ key
@@ -634,7 +679,7 @@ public class TrackerGrid : FrameworkElement
                 break;
 
             case Key.Back:
-                DeleteNote(IsBackspace: true);
+                HandleDeleteField(IsBackspace: true);
                 break;
 
             case Key.Enter:
@@ -803,7 +848,7 @@ public class TrackerGrid : FrameworkElement
             if (column == CurrentChannel * ColumnsPerChannel - 1)
             {
                 CurrentChannel--;
-                CurrentField = TrackerField.EffectFourthDigit;
+                CurrentField = TrackerField.EffectSecondDigit;
             }
             else
             {

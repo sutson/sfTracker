@@ -82,6 +82,7 @@ namespace sfTracker.Audio
 
             synthesizer.Reset(); // reset MeltySynth Synthesizer
             tracker.ResetChannelVolumes(); // reset channel volumes
+            tracker.ResetChannelPannings(); // reset channel pannings
         }
 
         /// <summary>

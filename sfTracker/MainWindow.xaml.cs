@@ -72,6 +72,8 @@ namespace sfTracker
             Engine.Tracker.ActiveVoices = new Voice[defaultChannelCount];
             Engine.Tracker.CurrentVolumes = new int[defaultChannelCount];
             Engine.Tracker.TargetVolumes = new int[defaultChannelCount];
+            Engine.Tracker.CurrentPannings = new PanEffect[defaultChannelCount];
+            Engine.Tracker.TargetPannings = new PanEffect[defaultChannelCount];
             Engine.Tracker.SetBPM(BPM);
             
             Tracker.Patterns = Engine.Tracker.Patterns;
