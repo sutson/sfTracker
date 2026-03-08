@@ -1,5 +1,6 @@
 ﻿using sfTracker.Audio;
 using sfTracker.GUI;
+using sfTracker.Helpers;
 using sfTracker.Playback;
 using sfTracker.Tracker;
 using System;
@@ -357,87 +358,27 @@ namespace sfTracker
             if (y < yLowerBound || y > yUpperBound) { return; }
 
             // for the mute button, mute or unmute channel accordingly
-            int channelToMute = HandleChannelButtonClick(x, Tracker.MuteButtonStartPositionsX);
+            int channelToMute =
+                ChannelSettings.HandleChannelButtonClick(
+                    x,
+                    Tracker.MuteButtonStartPositionsX,
+                    Tracker.ChannelCount,
+                    Tracker.ChannelButtonSize
+            );
             if (channelToMute != -1 && vm.Columns[channelToMute].IsMuted)
-                HandleUnmute(channelToMute);
+                ChannelSettings.HandleUnmute(channelToMute, vm, Engine, Tracker.ChannelStatuses);
             else
-                HandleMute(channelToMute);
+                ChannelSettings.HandleMute(channelToMute, vm, Engine, Tracker.ChannelStatuses);
 
             // for the solo button, handle solo accordingly
-            int channelToSolo = HandleChannelButtonClick(x, Tracker.SoloButtonStartPositionsX);
-            HandleSolo(channelToSolo);
-        }
-
-        private int HandleChannelButtonClick(double x, double[] startPositions)
-        {
-            for (int channel = 0; channel < Tracker.ChannelCount; channel++)
-            {
-                // check if current channel's button is within the x bounds of click
-                // if it is, return the channel number
-                double xLowerBound = startPositions[channel];
-                double xUpperBound = startPositions[channel] + Tracker.ChannelButtonSize;
-                if (x < xLowerBound || x > xUpperBound) { continue; }
-                return channel;
-            }
-
-            // return -1 if no match found
-            return -1;
-        }
-
-        private void HandleMute(int channel)
-        {
-            // do nothing if invalid channel or if channel already muted
-            if (channel == -1 || vm.Columns[channel].IsMuted) { return; }
-
-            UpdateMuteStatues(channel, isMuted: true); // update mute statuses for channel
-            Engine.StopNoteInChannel(channel); // kill currently playing notes in channel
-        }
-
-        private void HandleUnmute(int channel)
-        {
-            // do nothing if invalid channel or if channel not already muted
-            if (channel == -1 || !vm.Columns[channel].IsMuted) { return; }
-
-            UpdateMuteStatues(channel, isMuted: false); // update mute statuses for channel
-
-            // if unmuting a channel which isn't already solo
-            // remove solo from all channels
-            if (!vm.Columns[channel].IsSolo)
-                foreach (var column in vm.Columns) { column.IsSolo = false; }
-        }
-
-        private void UpdateMuteStatues(int channel, bool isMuted)
-        {
-            vm.Columns[channel].IsMuted = isMuted; // update mute status
-            Engine.Tracker.ChannelMuteStatuses[channel] = isMuted; // update channel statuses (used for preventing playback if muted)
-            Tracker.ChannelStatuses = vm.Columns; // update channel statuses (used for GUI M/S button styling)
-        }
-
-        private void HandleSolo(int channel)
-        {
-            // if channel not valid, do nothing
-            if (channel == -1) { return; }
-
-            // get list of channels which should be muted
-            List<int> channelsToMute = [.. Enumerable.Range(0, Tracker.ChannelCount).Where(x => x != channel)];
-            
-            if (vm.Columns[channel].IsSolo) // if channel is already solo
-            {
-                vm.Columns[channel].IsSolo = false; // remove solo setting
-                for (int ch = 0; ch < Tracker.ChannelCount; ch++) // for each channel, remove mute
-                    HandleUnmute(ch);
-            }
-            else // if channel not solo
-            {
-                vm.Columns[channel].IsSolo = true; // solo it
-                if (vm.Columns[channel].IsMuted) // if the channel is currently muted, unmute it
-                    HandleUnmute(channel);
-                foreach (int ch in channelsToMute) // for all other channels, mute them if they aren't already and remove solo value
-                {
-                    vm.Columns[ch].IsSolo = false;
-                    HandleMute(ch);
-                }
-            }
+            int channelToSolo =
+                ChannelSettings.HandleChannelButtonClick(
+                    x,
+                    Tracker.SoloButtonStartPositionsX,
+                    Tracker.ChannelCount,
+                    Tracker.ChannelButtonSize
+                );
+            ChannelSettings.HandleSolo(channelToSolo, vm, Engine, Tracker.ChannelStatuses, Tracker.ChannelCount);
         }
 
         private void ListBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
