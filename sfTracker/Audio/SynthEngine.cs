@@ -88,7 +88,7 @@ namespace sfTracker.Audio
         /// <summary>
         /// Method to stop all actively playing notes to prevent audio leaks when playing audio after stopping.
         /// </summary>
-        private void StopActiveNotes()
+        public void StopActiveNotes()
         {
             for (int i = 0; i < tracker.ActiveVoices.Length; i++)
             {
@@ -97,6 +97,17 @@ namespace sfTracker.Audio
             }
             
             Array.Clear(tracker.ActiveVoices, 0, tracker.ActiveVoices.Length); // clear the active voice array
+        }
+
+        /// <summary>
+        /// Method to stop actively playing note in a specific channel.
+        /// </summary>
+        public void StopNoteInChannel(int channel)
+        {
+            Voice voice = tracker.ActiveVoices[channel];
+            if (voice == null) { return; }
+            tracker.NoteOff(channel, voice.Note); // trigger NoteOff() for each active voice
+            tracker.ActiveVoices[channel] = null;
         }
 
         public void Dispose()

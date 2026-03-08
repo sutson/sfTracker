@@ -21,11 +21,12 @@ public class TrackerGrid : FrameworkElement
     private int SelectedInstrument = -1;
     private int SelectedInstrumentID = -1;
     private readonly int MaxRenderHeight = 500;
+    public readonly int TrackerMarginTop = -200;
 
     public int CurrentRow = 0;
     public int CurrentColumn = 0;
     public int CurrentChannel = 0;
-    public int ChannelCount = 4; // TODO: make generic
+    public int ChannelCount = 0;
     public int PatternCurrentRow = 0;
     public int currentPatternIndex = 0; // index in Patterns[]
     public int FirstVisibleRow = 0;
@@ -34,9 +35,18 @@ public class TrackerGrid : FrameworkElement
     public double HorizontalScrollbarValue = 0;
     public bool IsPlaying = false;
 
+    // variables for channel buttons (mute/solo)
+    public ObservableCollection<TrackerColumn> ChannelStatuses;
+    public double[] MuteButtonStartPositionsX;
+    public double[] SoloButtonStartPositionsX;
+    public double ChannelButtonStartPositionY;
+    public int ChannelButtonSize = 18;
+
     public ObservableCollection<SoundFontPreset> PresetList = [];
     public TrackerField CurrentField = TrackerField.Note;
-    public int ColumnsPerChannel = Enum.GetValues(typeof(TrackerField)).Length; // 1 (note) + 3 (instrument) + 3 (volume) + 4 (effect) TODO: make this a const
+
+    // how many selectable fields exist in a single channel (column)
+    public int FieldsPerChannel = Enum.GetValues(typeof(TrackerField)).Length; 
 
     public double RowHeight = 15;
     public readonly int LeadInRows = 8; // number of rows before the viewport starts scrolling
@@ -45,6 +55,7 @@ public class TrackerGrid : FrameworkElement
     public double NoteWidth;
     public double ChannelInnerPadding;
     public double ColumnWidth;
+    public double RowWidth;
 
     public SynthEngine Engine { get; set; }
     public int VisibleRowCount => (int)(ActualHeight / RowHeight) + 1;
@@ -103,16 +114,11 @@ public class TrackerGrid : FrameworkElement
     {
         base.OnRender(context);
 
-        Point colSepStart = new(0, -209);
-        Point colSepEnd = new(0, 1000);
-        Pen linePen = new(Brushes.ActivePatternBrush, 1);
+        for (int channel = 0; channel < ChannelCount; channel++)
+            DrawColumnHeaders(context, channel);
 
         for (int channel = 0; channel < ChannelCount + 1; channel++)
-        {
-            colSepStart.X = channel * ColumnWidth;
-            colSepEnd.X = channel * ColumnWidth;
-            context.DrawLine(linePen, colSepStart, colSepEnd);
-        }
+            DrawColumnSeparationLines(context, channel);
 
         if (Patterns == null || Patterns.Count == 0) return;
 
@@ -138,7 +144,7 @@ public class TrackerGrid : FrameworkElement
                                 ? (row % 4 == 0 ? Brushes.ActivePatternBrush : Brushes.LowOpacityTextBrush)
                                 : (row % 4 == 0 ? Brushes.InactiveTextBrush : Brushes.LowOpacityInactiveTextBrush)
                         ),
-                        new Point(-31.5, y)
+                        new Point(-32, y)
                     );
                 }
 
@@ -159,7 +165,7 @@ public class TrackerGrid : FrameworkElement
                                 ? Brushes.FourthRowHighlight
                                 : Brushes.InactiveFourthRowHighlight,
                             null,
-                            new Rect(0, y, ChannelCount * ColumnWidth, RowHeight)
+                            new Rect(0, y, RowWidth, RowHeight)
                         );
                     }
 
@@ -208,7 +214,7 @@ public class TrackerGrid : FrameworkElement
             new Rect(
                 0,
                 (CurrentRow - FirstVisibleRow) * RowHeight,
-                ChannelCount * ColumnWidth,
+                RowWidth,
                 RowHeight
             ));
     }
@@ -294,15 +300,103 @@ public class TrackerGrid : FrameworkElement
         }
     }
 
-    public FormattedText RenderText(string noteText, SolidColorBrush brush, FontWeight weight = default)
+    private void DrawColumnHeaders(DrawingContext context, int channel)
+    {
+        double headerStartX = channel * ColumnWidth;
+        double headerY = TrackerMarginTop;
+        double headerHeight = 80; // TODO: make this a const? it's used in the xaml
+        double padding = 12;
+        double buttonSize = ChannelButtonSize; // TODO: make this a const? it's used in the xaml
+
+        // draw column headers with gradient fill
+        context.DrawRectangle(
+            new LinearGradientBrush(
+                [
+                    new GradientStop((Color)ColorConverter.ConvertFromString("#373654"), 0.0),
+                    new GradientStop((Color)ColorConverter.ConvertFromString("#4C4B6A"), 0.1),
+                    new GradientStop((Color)ColorConverter.ConvertFromString("#9897BA"), 0.5),
+                    new GradientStop((Color)ColorConverter.ConvertFromString("#4C4B6A"), 0.9),
+                    new GradientStop((Color)ColorConverter.ConvertFromString("#373654"), 1.0)
+                ],
+                new Point(0, 0),
+                new Point(0, 1)
+            ),
+            null,
+            new Rect(headerStartX, headerY, ColumnWidth, headerHeight)
+        );
+
+        double channelTextStartX = headerStartX + padding / 2;
+
+        // draw "Channel X" text
+        FormattedText channelText = RenderText($"Channel {channel + 1}", Brushes.Black, 12, FontWeights.DemiBold);
+        context.DrawText(
+            channelText,
+            new Point(
+                channelTextStartX,
+                headerY + (headerHeight - channelText.Height) / 2
+            )
+        );
+
+        // define starting x and y positions for the mute button
+        double muteButtonX = channelTextStartX + channelText.Width + padding;
+        double soloButtonX = muteButtonX + buttonSize + padding / 2;
+        double buttonY = headerY + (headerHeight - buttonSize) / 2;
+
+        MuteButtonStartPositionsX[channel] = muteButtonX;
+        SoloButtonStartPositionsX[channel] = soloButtonX;
+        ChannelButtonStartPositionY = buttonY;
+        
+        // mute button - create container and text, then draw it
+        DrawChannelButton(context, "M", muteButtonX, buttonY, buttonSize, ChannelStatuses[channel].IsMuted);
+        
+        // solo button - draw based on placement of mute button
+        DrawChannelButton(context, "S", soloButtonX, buttonY, buttonSize, ChannelStatuses[channel].IsSolo);
+    }
+
+    private void DrawChannelButton(DrawingContext context, string value, double startX, double startY, double size, bool isSelected)
+    {
+        // create rectangle and text render
+        Rect rect = new Rect(startX, startY, size, size);
+        FormattedText text = RenderText(value, Brushes.Black, 14, FontWeights.DemiBold);
+
+        if (isSelected) // highlight text in red if it is clicked
+            text.SetForegroundBrush(Brushes.Red);
+
+        // draw rectangle and text
+        context.DrawRectangle(
+                Brushes.ChannelButtonBackground, // change text colour based on background
+                new Pen(Brushes.ChannelButtonOutline, 2),
+                rect
+            );
+        context.DrawText(
+            text,
+            new Point(
+                rect.X + (rect.Width - text.Width) / 2,  // centre text horizontally
+                rect.Y + (rect.Height - text.Height) / 2 // centre text vertically
+            )
+        );
+    }
+
+    private void DrawColumnSeparationLines(DrawingContext context, int channel)
+    {
+        Point colSepStart = new Point(0, TrackerMarginTop);
+        Point colSepEnd = new Point(0, 1000);
+        Pen linePen = new Pen(Brushes.ActivePatternBrush, 1);
+
+        colSepStart.X = channel * ColumnWidth;
+        colSepEnd.X = channel * ColumnWidth;
+        context.DrawLine(linePen, colSepStart, colSepEnd);
+    }
+
+    public FormattedText RenderText(string noteText, SolidColorBrush brush, int size = 14, FontWeight weight = default)
     {
         FormattedText text = 
             new FormattedText(
                 noteText,                                   // text to be rendered
                 CultureInfo.InvariantCulture,               // InvariantCulture ensures consistent text regardless of system culture 
                 FlowDirection.LeftToRight,                  // write from left to right
-                new Typeface("Consolas"),                   // Consolas is a nice monospace font
-                14,                                         // font size
+                new Typeface("Consolas"),                   // font type (default is Consolas, a nice monospace font)
+                size,                                       // font size
                 brush,                                      // text colour
                 VisualTreeHelper.GetDpi(this).PixelsPerDip  // prevent blurry text on high DPI monitors
             );
@@ -422,13 +516,17 @@ public class TrackerGrid : FrameworkElement
             digitIndex,
             newValue
         );
-        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID = updatedInstrumentID;
 
-        SoundFontPreset preset = PresetList.FirstOrDefault(x => x.ID == updatedInstrumentID);
-        
+        SoundFontPreset preset = GetSoundFontPresetFromID(updatedInstrumentID);
         if (preset == null) { return; } // TODO: update to make instrument colour red if no preset found
-
         Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument = preset.Instrument;
+    }
+
+    private SoundFontPreset GetSoundFontPresetFromID(int id)
+    {
+        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID = id;
+        SoundFontPreset preset = PresetList.FirstOrDefault(x => x.ID == id);
+        return preset;
     }
 
     private void ChangeNoteVolume(int digitIndex, int newValue)
@@ -836,16 +934,16 @@ public class TrackerGrid : FrameworkElement
             return 0;
         }
 
-        if (column > ColumnsPerChannel * ChannelCount - 1)
+        if (column > FieldsPerChannel * ChannelCount - 1)
         {
-            return ColumnsPerChannel * ChannelCount - 1;
+            return FieldsPerChannel * ChannelCount - 1;
         }
 
         int change = column - CurrentColumn;
 
         if (change == -1) // moved back once
         {
-            if (column == CurrentChannel * ColumnsPerChannel - 1)
+            if (column == CurrentChannel * FieldsPerChannel - 1)
             {
                 CurrentChannel--;
                 CurrentField = TrackerField.EffectSecondDigit;
@@ -857,7 +955,7 @@ public class TrackerGrid : FrameworkElement
         }
         else if (change == 1) // moved forward once
         {
-            if (CurrentColumn == (CurrentChannel + 1) * ColumnsPerChannel - 1)
+            if (CurrentColumn == (CurrentChannel + 1) * FieldsPerChannel - 1)
             {
                 CurrentChannel++;
                 CurrentField = TrackerField.Note;
@@ -868,7 +966,7 @@ public class TrackerGrid : FrameworkElement
             }
         }
 
-        CurrentField = (TrackerField)Math.Clamp((int)CurrentField, 0, ColumnsPerChannel - 1); // clamp to ensure within valid range
+        CurrentField = (TrackerField)Math.Clamp((int)CurrentField, 0, FieldsPerChannel - 1); // clamp to ensure within valid range
 
         return column;
     }

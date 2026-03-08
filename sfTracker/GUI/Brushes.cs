@@ -14,7 +14,10 @@ namespace sfTracker.GUI
         public static SolidColorBrush LowOpacityTextBrush;
         public static SolidColorBrush InactiveTextBrush;
         public static SolidColorBrush LowOpacityInactiveTextBrush;
-
+        public static SolidColorBrush ChannelButtonBackground;
+        public static SolidColorBrush ChannelButtonOutline;
+        public static SolidColorBrush Black;
+        public static SolidColorBrush Red;
         public static void Init()
         {
             FourthRowHighlight = new SolidColorBrush(Color.FromArgb(5, 255, 255, 255));
@@ -43,6 +46,18 @@ namespace sfTracker.GUI
 
             LowOpacityInactiveTextBrush = new SolidColorBrush(Color.FromArgb(50, 255, 255, 255)); // greyed
             LowOpacityInactiveTextBrush.Freeze();
+
+            ChannelButtonBackground = new SolidColorBrush(Color.FromArgb(255, 196, 195, 219));
+            ChannelButtonBackground.Freeze();
+            
+            ChannelButtonOutline = new SolidColorBrush(Color.FromArgb(80, 0, 0, 0));
+            ChannelButtonOutline.Freeze();
+
+            Black = new SolidColorBrush(Color.FromArgb(255, 0, 0, 0));
+            Black.Freeze();
+
+            Red = new SolidColorBrush(Color.FromArgb(255, 200, 0, 0));
+            Red.Freeze();
         }
         
     }

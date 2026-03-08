@@ -27,6 +27,7 @@ namespace sfTracker.Tracker
         public int CurrentTick { get; set; }
         public Pattern[] Patterns { get; set; } 
         public Voice[] ActiveVoices { get; set; }
+        public bool[] ChannelMuteStatuses { get; set; }
 
         public TrackerEngine(Synthesizer synthesizer, int sampleRate)
         {
@@ -205,6 +206,8 @@ namespace sfTracker.Tracker
         /// </summary>
         private void HandleNoteTrigger(int channel, int note, int bank, int instrument, int velocity, PanEffect panning, Voice voice)
         {
+            if (ChannelMuteStatuses[channel]) { return; } // don't trigger notes if channel muted
+
             // if voice exists, turn it off
             // also if voice exists and stop note is present, turn off active voice
             if (voice != null || (voice != null && note == ProgramConstants.StopNote))

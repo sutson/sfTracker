@@ -11,6 +11,7 @@ namespace sfTracker.GUI
     public class MainViewModel : INotifyPropertyChanged
     {
         public ObservableCollection<SoundFontPreset> Presets { get; set; } = [];
+        public ObservableCollection<TrackerColumn> Columns { get; } = [];
 
         private SoundFontPreset _selectedPreset;
         public SoundFontPreset SelectedPreset
@@ -52,6 +53,12 @@ namespace sfTracker.GUI
             SelectedPreset = Presets[0]; // set selected preset on load
 
             return Presets;
+        }
+
+        public void GetColumns(int channelCount, double columnWidth)
+        {
+            for (int i = 0; i < channelCount; i++)
+                Columns.Add(new TrackerColumn { Index = i, ColumnWidth = columnWidth });
         }
     }
 }
