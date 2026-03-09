@@ -5,26 +5,28 @@
     Title="sfTracker"
     WindowState="Maximized"
     Background="#1f1e33">
-
+    <!-- COLOURS: dark bg = #141424
+                  light header = #353554
+    -->
     <!-- https://github.com/angelsix/fasetto-word/blob/develop/Source/Fasetto.Word/Styles/Scroll.xaml -->
     <Window.Resources>
         <!-- templates for vertical line rendering (redundant) -->
         <Style x:Key="VerticalLineTop" TargetType="Line">
-            <Setter Property="Stroke" Value="White"/>
+            <Setter Property="Stroke" Value="FloralWhite"/>
             <Setter Property="StrokeThickness" Value="1"/>
             <Setter Property="Grid.Row" Value="1"/>
             <Setter Property="Y1" Value="11"/>
             <Setter Property="Y2" Value="20"/>
         </Style>
         <Style x:Key="VerticalLineMiddle" TargetType="Line">
-            <Setter Property="Stroke" Value="White"/>
+            <Setter Property="Stroke" Value="FloralWhite"/>
             <Setter Property="StrokeThickness" Value="1"/>
             <Setter Property="Grid.Row" Value="1"/>
             <Setter Property="Y1" Value="125"/>
             <Setter Property="Y2" Value="1000"/>
         </Style>
         <Style x:Key="VerticalLineBottom" TargetType="Line">
-            <Setter Property="Stroke" Value="White"/>
+            <Setter Property="Stroke" Value="FloralWhite"/>
             <Setter Property="StrokeThickness" Value="1"/>
             <Setter Property="Grid.Row" Value="1"/>
             <Setter Property="Y1" Value="0"/>
@@ -104,11 +106,9 @@
         <!-- template for vertical slider (scroll) -->
         <ControlTemplate x:Key="VerticalSliderTemplate" TargetType="Slider">
                 <Track x:Name="PART_Track" IsDirectionReversed="False">
-
                     <Track.DecreaseRepeatButton>
                         <RepeatButton Opacity="0" IsHitTestVisible="False"/>
                     </Track.DecreaseRepeatButton>
-
                     <Track.Thumb>
                         <Thumb Width="10" Height="100">
                             <Thumb.Template>
@@ -163,13 +163,32 @@
                             </Thumb.Template>
                         </Thumb>
                     </Track.Thumb>
-
                     <Track.IncreaseRepeatButton>
                         <RepeatButton Opacity="0" IsHitTestVisible="False"/>
                     </Track.IncreaseRepeatButton>
-
                 </Track>
             </ControlTemplate>
+
+        <!-- template for vertical slider (scroll) -->
+        <ControlTemplate x:Key="PatternVerticalSliderTemplate" TargetType="Slider">
+            <Track x:Name="PART_Track" IsDirectionReversed="False">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb Width="10" Height="50">
+                        <Thumb.Template>
+                            <ControlTemplate TargetType="Thumb">
+                                <Border x:Name="ThumbBorder" Background="FloralWhite" CornerRadius="5" SnapsToDevicePixels="True" />
+                            </ControlTemplate>
+                        </Thumb.Template>
+                    </Thumb>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Opacity="0" IsHitTestVisible="False"/>
+                </Track.IncreaseRepeatButton>
+            </Track>
+        </ControlTemplate>
     </Window.Resources>
     
     <Grid Panel.ZIndex="0">
@@ -185,41 +204,230 @@
         </Grid.RowDefinitions>
 
         <!-- container for controls and preset selection -->
-        <Grid Background="Transparent"  PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="0">
+        <Grid PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="0" Margin="0 5 0 5">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="30" />
+                <ColumnDefinition Width="500" />
+                <ColumnDefinition Width="500" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Background="Transparent" Grid.Column="0" HorizontalAlignment="Stretch"></TextBlock>
-
-            <!-- MARGIN: LEFT, TOP, RIGHT, BOTTOM -->
-            <Border Grid.Column="2" BorderThickness="1" BorderBrush="White" Margin="0 5 5 10">
-                <!-- container for preset selection -->
-                <Grid Background="Transparent" HorizontalAlignment="Stretch">
+            <Border Grid.Column="0" BorderThickness="1" BorderBrush="FloralWhite" Margin="10 5 0 10">
+                <!-- container for pattern selection / adding -->
+                <Grid Background="#141424" HorizontalAlignment="Stretch">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="40" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0">
+                    <Border BorderThickness="0 0 0 1" BorderBrush="FloralWhite">
+                        <Grid Grid.Row="0" Background="#353554">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="150" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                x:Name="PatternSection"
+                                Text="Patterns"
+                                FontSize="20"
+                                FontWeight="Bold"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Center"
+                                Margin="10 0 0 2"
+                                TextAlignment="Left"
+                                Grid.Column="0"
+                                Foreground="FloralWhite"
+                            />
+                        </Grid>
+                    </Border>
+                    
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="50" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" VerticalAlignment="Stretch" BorderThickness="1" BorderBrush="FloralWhite" Margin="10 10 10 0">
+                            <!-- pattern stuff goes here -->
+                            <Grid Background="Transparent" Grid.Row="2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <!-- tracker part -->
+                                    <ColumnDefinition Width="Auto" />
+                                    <!-- scroll bar part -->
+                                </Grid.ColumnDefinitions>
+
+                                <!-- TrackerGrid aligned left -->
+
+                                <!-- Slider aligned right -->
+                                <!--<Slider
+                                    x:Name="PatternScrollBar"
+                                    Orientation="Vertical"
+                                    Grid.Column="1"
+                                    Margin="0 10 10 10"
+                                    Minimum="0"
+                                    SmallChange="1"
+                                    LargeChange="1"
+                                    TickFrequency="1"
+                                    IsSnapToTickEnabled="True"
+                                    ValueChanged="VerticalScrollBar_ValueChanged"
+                                    Template="{StaticResource VerticalSliderTemplate}"
+                                >-->
+                                <Slider
+                                    x:Name="PatternScrollBar"
+                                    Orientation="Vertical"
+                                    Grid.Column="1"
+                                    Margin="0 10 10 10"
+                                    Minimum="0"
+                                    SmallChange="1"
+                                    LargeChange="1"
+                                    TickFrequency="1"
+                                    IsSnapToTickEnabled="True"
+                                    Template="{StaticResource PatternVerticalSliderTemplate}"
+                                >
+                                    <Slider.LayoutTransform>
+                                        <ScaleTransform ScaleY="-1"/>
+                                    </Slider.LayoutTransform>
+                                </Slider>
+                            </Grid>
+                        </Border>
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid Grid.Column="0">
+                                <Button
+                                    VerticalAlignment="Bottom"
+                                    Margin="10 0 5 10"
+                                    Padding="5"
+                                >
+                                    <!-- remove pattern logic here -->
+                                    Remove Pattern
+                                </Button>
+                            </Grid>
+                            <Grid Grid.Column="1">
+                                <Button
+                                    VerticalAlignment="Bottom"
+                                    Margin="5 0 10 10"
+                                    Padding="5"
+                                >
+                                    <!-- add pattern logic here -->
+                                    Add Pattern
+                                </Button>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" BorderThickness="1" BorderBrush="FloralWhite" Margin="10 5 5 10">
+                <!-- container for song settings (bpm, speed, row count?, highlight cell number etc.) -->
+                <Grid Background="#141424" HorizontalAlignment="Stretch">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="40" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Grid.Column="0" BorderThickness="0 0 0 1" BorderBrush="FloralWhite">
+                        <Grid Grid.Row="0" Background="#353554">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                x:Name="SettingsSection"
+                                Text="Settings"
+                                FontSize="20"
+                                FontWeight="Bold"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Center"
+                                Margin="10 0 0 2"
+                                TextAlignment="Left"
+                                Grid.Column="0"
+                                Foreground="FloralWhite"
+                            />
+                        </Grid>
+                    </Border>
+                    <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="5" />
                             <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" BorderThickness="1" BorderBrush="FloralWhite" Margin="10 10 0 10">
+                        </Border>
+
+                        <Border Grid.Column="2" BorderThickness="1" BorderBrush="FloralWhite" Margin="5 10 10 10">
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- MARGIN: LEFT, TOP, RIGHT, BOTTOM -->
+            <Border Grid.Column="3" BorderThickness="1" BorderBrush="FloralWhite" Margin="5 5 10 10">
+                <!-- container for preset selection -->
+                <Grid Background="Transparent" HorizontalAlignment="Stretch">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="40" />
+                        <RowDefinition Height="5" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Grid.Column="0" BorderThickness="0 0 0 1" BorderBrush="FloralWhite">
+                        <Grid Grid.Row="0" Background="#353554">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="150" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                x:Name="SoundFontSectionTitle"
+                                Grid.Column="0"
+                                Text="SoundFont Manager"
+                                FontSize="20"
+                                FontWeight="Bold"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Center"
+                                Margin="10 0 0 2"
+                                TextAlignment="Left"
+                                Foreground="FloralWhite"
+                            />
+                            <TextBlock
+                                x:Name="SelectedSoundFont"
+                                Grid.Column="2"
+                                Text=""
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Stretch"
+                                FontWeight="DemiBold"
+                                TextAlignment="Right"
+                                Foreground="FloralWhite"
+                            />
+                            <Button
+                                Grid.Column="3"
+                                VerticalAlignment="Center"
+                                Margin="10 5 10 5"
+                                Padding="5"
+                                Click="Button_OpenSF2"
+                            >
+                                Import .sf2 File
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="5" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Button VerticalAlignment="Center" Margin="5 5 0 5" Padding="5" Click="Button_OpenSF2" Grid.Column="0">Import .sf2 File</Button>
-                        <TextBlock x:Name="SelectedSoundFont" Text="" VerticalAlignment="Center" Grid.Column="2" Foreground="FloralWhite" />
-                    </Grid>
-                    <Grid Grid.Row="1">
-                        <ListBox Grid.Row="0"
-                             ItemsSource="{Binding Presets}"
-                             SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
-                             PreviewKeyDown="ListBox_PreviewKeyDown"
-                             Background="Transparent"
-                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        <ListBox
+                            Grid.Column="1"
+                            ItemsSource="{Binding Presets}"
+                            SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                            PreviewKeyDown="ListBox_PreviewKeyDown"
+                            Background="#141424"
+                            ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            BorderBrush="Transparent"
+                            BorderThickness="0 1 0 0"
                         >
                             <ListBox.Resources>
                                 <Style x:Key="HorizontalThumbStyle" TargetType="Thumb">
@@ -234,7 +442,6 @@
                                         </Setter.Value>
                                     </Setter>
                                 </Style>
-
                                 <Style TargetType="ScrollBar">
                                     <Style.Triggers>
                                         <Trigger Property="Orientation" Value="Horizontal">
@@ -244,7 +451,6 @@
                                                     <ControlTemplate TargetType="ScrollBar">
                                                         <Grid Background="Transparent">
                                                             <Track x:Name="PART_Track">
-
                                                                 <Track.DecreaseRepeatButton>
                                                                     <RepeatButton Opacity="0" IsHitTestVisible="False"/>
                                                                 </Track.DecreaseRepeatButton>
@@ -256,28 +462,25 @@
                                                                 <Track.IncreaseRepeatButton>
                                                                     <RepeatButton Opacity="0" IsHitTestVisible="False"/>
                                                                 </Track.IncreaseRepeatButton>
-
                                                             </Track>
                                                         </Grid>
                                                     </ControlTemplate>
                                                 </Setter.Value>
                                             </Setter>
                                         </Trigger>
-
                                     </Style.Triggers>
                                 </Style>
-
                             </ListBox.Resources>
-
+                            
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel Orientation="Vertical" />
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
-                            
+
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem">
-                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="Foreground" Value="FloralWhite"/>
                                     <Setter Property="Background" Value="Transparent"/>
                                     <Setter Property="HorizontalAlignment" Value="Stretch"/>
                                     <Setter Property="ScrollViewer.HorizontalAlignment" Value="Stretch"/>
@@ -286,7 +489,7 @@
 
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Display}"  />
+                                    <TextBlock Text="{Binding Display}"/>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
@@ -297,22 +500,8 @@
 
         <!-- container to separate controls from tracker -->
         <Grid Background="Transparent"  PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="1">
-            <Border BorderThickness="1" Height="1" BorderBrush="White" Grid.Row="1"/>
-
-            <!--<Line Style="{StaticResource VerticalLineTop}" X1="10" X2="10"/>
-            <Line Style="{StaticResource VerticalLineTop}" X1="50" X2="50"/>
-            <Line Style="{StaticResource VerticalLineTop}" X1="170" X2="170"/>
-            <Line Style="{StaticResource VerticalLineTop}" X1="290" X2="290"/>
-            <Line Style="{StaticResource VerticalLineTop}" X1="410" X2="410"/>
-            <Line Style="{StaticResource VerticalLineTop}" X1="530" X2="530"/>-->
+            <Border BorderThickness="1" Height="1" BorderBrush="FloralWhite" Grid.Row="1" />
         </Grid>
-
-        <!--<Line Style="{StaticResource VerticalLineMiddle}" X1="10" X2="10"/>
-        <Line Style="{StaticResource VerticalLineMiddle}" X1="50" X2="50"/>
-        <Line Style="{StaticResource VerticalLineMiddle}" X1="170" X2="170"/>
-        <Line Style="{StaticResource VerticalLineMiddle}" X1="290" X2="290"/>
-        <Line Style="{StaticResource VerticalLineMiddle}" X1="410" X2="410"/>
-        <Line Style="{StaticResource VerticalLineMiddle}" X1="530" X2="530"/>-->
 
         <!-- container for tracker grid and vertical slider -->
         <Grid Background="Transparent" MouseLeftButtonDown="Tracker_MouseLeftButtonDown" PreviewMouseWheel="Grid_PreviewMouseWheel" Grid.Row="2">
@@ -323,15 +512,9 @@
                 <!-- scroll bar part -->
             </Grid.ColumnDefinitions>
 
-            <!--<Line Style="{StaticResource VerticalLineBottom}" X1="10" X2="10"/>
-            <Line Style="{StaticResource VerticalLineBottom}" X1="50" X2="50"/>
-            <Line Style="{StaticResource VerticalLineBottom}" X1="170" X2="170"/>
-            <Line Style="{StaticResource VerticalLineBottom}" X1="290" X2="290"/>
-            <Line Style="{StaticResource VerticalLineBottom}" X1="410" X2="410"/>
-            <Line Style="{StaticResource VerticalLineBottom}" X1="530" X2="530"/>-->
-
             <!-- TrackerGrid aligned left -->
-            <local:TrackerGrid x:Name="Tracker"
+            <local:TrackerGrid
+                x:Name="Tracker"
                 Grid.Column="0"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Stretch"
@@ -360,7 +543,7 @@
 
         <!-- bottom section for horizontal scrollbar -->
         <Grid Background="#1f1e33" Grid.Row="3" Panel.ZIndex="1">
-            <Border Background="Transparent" Margin="0 0 0 0" BorderThickness="0 1 0 0" BorderBrush="White" />
+            <Border Background="Transparent" Margin="0 0 0 0" BorderThickness="0 1 0 0" BorderBrush="FloralWhite" />
             <Slider
                 x:Name="HorizontalScrollBar"
                 Minimum="0"

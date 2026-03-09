@@ -328,7 +328,7 @@ public class TrackerGrid : FrameworkElement
         double channelTextStartX = headerStartX + padding / 2;
 
         // draw "Channel X" text
-        FormattedText channelText = RenderText($"Channel {channel + 1}", Brushes.Black, 12, FontWeights.DemiBold);
+        FormattedText channelText = RenderText($"Channel {channel + 1}", Brushes.Black, 13, FontWeights.DemiBold, "Segoe UI");
         context.DrawText(
             channelText,
             new Point(
@@ -357,7 +357,7 @@ public class TrackerGrid : FrameworkElement
     {
         // create rectangle and text render
         Rect rect = new Rect(startX, startY, size, size);
-        FormattedText text = RenderText(value, Brushes.Black, 14, FontWeights.DemiBold);
+        FormattedText text = RenderText(value, Brushes.Black, 14, FontWeights.DemiBold, "Segoe UI");
 
         if (isSelected) // highlight text in red if it is clicked
             text.SetForegroundBrush(Brushes.Red);
@@ -388,14 +388,14 @@ public class TrackerGrid : FrameworkElement
         context.DrawLine(linePen, colSepStart, colSepEnd);
     }
 
-    public FormattedText RenderText(string noteText, SolidColorBrush brush, int size = 14, FontWeight weight = default)
+    public FormattedText RenderText(string noteText, SolidColorBrush brush, int size = 14, FontWeight weight = default, string font = "Consolas")
     {
         FormattedText text = 
             new FormattedText(
                 noteText,                                   // text to be rendered
                 CultureInfo.InvariantCulture,               // InvariantCulture ensures consistent text regardless of system culture 
                 FlowDirection.LeftToRight,                  // write from left to right
-                new Typeface("Consolas"),                   // font type (default is Consolas, a nice monospace font)
+                new Typeface(font),                   // font type (default is Consolas, a nice monospace font)
                 size,                                       // font size
                 brush,                                      // text colour
                 VisualTreeHelper.GetDpi(this).PixelsPerDip  // prevent blurry text on high DPI monitors

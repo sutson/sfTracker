@@ -48,7 +48,7 @@ namespace sfTracker
                 soundFont: "Kirby's_Dream_Land_3.sf2",
                 patterns: [
                     new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount),
-                    new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount)
+                    //new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount)
                 ],
                 BPM: defaultBPM
             );
