@@ -20,7 +20,7 @@ public class TrackerGrid : FrameworkElement
     private int SelectedBank = -1;
     private int SelectedInstrument = -1;
     private int SelectedInstrumentID = -1;
-    private readonly int MaxRenderHeight = 500;
+    private readonly int MaxRenderHeight = 510;
     public readonly int TrackerMarginTop = -200;
 
     public int CurrentRow = 0;
@@ -31,8 +31,6 @@ public class TrackerGrid : FrameworkElement
     public int currentPatternIndex = 0; // index in Patterns[]
     public int FirstVisibleRow = 0;
     public int TotalRowCount = 0;
-    public double VerticalScrollbarValue = 0;
-    public double HorizontalScrollbarValue = 0;
     public bool IsPlaying = false;
 
     // variables for channel buttons (mute/solo)
@@ -41,6 +39,16 @@ public class TrackerGrid : FrameworkElement
     public double[] SoloButtonStartPositionsX;
     public double ChannelButtonStartPositionY;
     public int ChannelButtonSize = 18;
+
+    // variables for frame selection
+    public double FrameSelectStartX = -18;
+    public double FrameSelectStartY = -388;
+    public double FrameSelectRowWidth = 445;
+    public double FrameSelectRowHeight = 20;
+    public double FrameTextPadding = 5;
+    public int MaxVisibleFrames = 6;
+    public int FirstVisibleFrame = 0;
+    public int LastVisibleFrame = 6;
 
     public ObservableCollection<SoundFontPreset> PresetList = [];
     public TrackerField CurrentField = TrackerField.Note;
@@ -74,6 +82,7 @@ public class TrackerGrid : FrameworkElement
 
         Brushes.Init();
         Focusable = true; // set focusable so key presses can be used to navigate/place notes
+        IsHitTestVisible = false; // prevent filled shapes messing with scrolling
     }
 
     // https://stackoverflow.com/questions/47678298/wpf-dependency-property-on-change-update-control
@@ -119,6 +128,9 @@ public class TrackerGrid : FrameworkElement
 
         for (int channel = 0; channel < ChannelCount + 1; channel++)
             DrawColumnSeparationLines(context, channel);
+
+        for (int pattern = FirstVisibleFrame; pattern < LastVisibleFrame; pattern++)
+            DrawFrameSelectRows(context, pattern);
 
         if (Patterns == null || Patterns.Count == 0) return;
 
@@ -328,7 +340,7 @@ public class TrackerGrid : FrameworkElement
         double channelTextStartX = headerStartX + padding / 2;
 
         // draw "Channel X" text
-        FormattedText channelText = RenderText($"Channel {channel + 1}", Brushes.Black, 13, FontWeights.DemiBold, "Segoe UI");
+        FormattedText channelText = RenderText($"Channel {channel + 1}", Brushes.Black, 13, FontWeights.DemiBold);
         context.DrawText(
             channelText,
             new Point(
@@ -338,7 +350,7 @@ public class TrackerGrid : FrameworkElement
         );
 
         // define starting x and y positions for the mute button
-        double muteButtonX = channelTextStartX + channelText.Width + padding;
+        double muteButtonX = channelTextStartX + channelText.Width + padding / 2;
         double soloButtonX = muteButtonX + buttonSize + padding / 2;
         double buttonY = headerY + (headerHeight - buttonSize) / 2;
 
@@ -357,7 +369,7 @@ public class TrackerGrid : FrameworkElement
     {
         // create rectangle and text render
         Rect rect = new Rect(startX, startY, size, size);
-        FormattedText text = RenderText(value, Brushes.Black, 14, FontWeights.DemiBold, "Segoe UI");
+        FormattedText text = RenderText(value, Brushes.Black, 13, FontWeights.DemiBold, "Segoe UI");
 
         if (isSelected) // highlight text in red if it is clicked
             text.SetForegroundBrush(Brushes.Red);
@@ -386,6 +398,33 @@ public class TrackerGrid : FrameworkElement
         colSepStart.X = channel * ColumnWidth;
         colSepEnd.X = channel * ColumnWidth;
         context.DrawLine(linePen, colSepStart, colSepEnd);
+    }
+
+    private void DrawFrameSelectRows(DrawingContext context, int pattern)
+    {
+        context.DrawRectangle(
+            pattern == currentPatternIndex ? Brushes.CurrentFrameHighlight : null,
+            null,
+            new Rect(
+                FrameSelectStartX,
+                FrameSelectStartY + (FrameSelectRowHeight * (pattern - FirstVisibleFrame)),
+                FrameSelectRowWidth,
+                FrameSelectRowHeight
+            )
+        );
+
+        context.DrawText(
+            RenderText(
+                $"Pattern {pattern + 1}",
+                Brushes.OffWhite,
+                weight: pattern == currentPatternIndex ? FontWeights.Bold : FontWeights.Normal,
+                font: "Segou UI"
+            ),
+            new Point(
+                FrameSelectStartX + FrameTextPadding,
+                FrameSelectStartY + (FrameSelectRowHeight * (pattern - FirstVisibleFrame)) + FrameTextPadding / 2
+            )
+        );
     }
 
     public FormattedText RenderText(string noteText, SolidColorBrush brush, int size = 14, FontWeight weight = default, string font = "Consolas")
@@ -802,10 +841,12 @@ public class TrackerGrid : FrameworkElement
     public event Action BankSelected;
     public event Action<double> VerticalScrollbarValueChanged;
     public event Action<double> HorizontalScrollbarValueChanged;
+    public event Action<double> FrameVerticalScrollbarValueChanged;
     public event Action<int, int> AdvancedRow;
     public event Action<int, int> AdvancedColumn;
     public event Action<int> RowChanged;
     public event Action<int> ColumnChanged;
+    public event Action<int> PatternChanged;
 
     public void StartPlayback()
     {
@@ -828,17 +869,23 @@ public class TrackerGrid : FrameworkElement
     public void SetVerticalScrollbarValue(double value)
     {
         VerticalScrollbarValueChanged?.Invoke(value);
-        VerticalScrollbarValue = value;
     }
+
     public void SetHorizontalScrollbarValue(double value)
     {
         HorizontalScrollbarValueChanged?.Invoke(value);
-        HorizontalScrollbarValue = value;
     }
+
+    public void SetFrameVerticalScrollbarValue(double value)
+    {
+        FrameVerticalScrollbarValueChanged?.Invoke(value);
+    }
+
     public void AdvanceRow(int cur, int next)
     {
         AdvancedRow?.Invoke(cur, next);
     }
+
     public void AdvanceColumn(int cur, int next)
     {
         AdvancedColumn?.Invoke(cur, next);
@@ -892,15 +939,15 @@ public class TrackerGrid : FrameworkElement
         if (index == 0) return 0;
         return Patterns[index-1].Rows.Length;
     }
-
     private int WrapRow(int row)
     {
         int rowsInCurrentPattern = Patterns[currentPatternIndex].Rows.Length;
 
-        if (row >= TotalRowCount)
+        if (row >= TotalRowCount - 1)
         {
             RowOffset = 0;
             currentPatternIndex = 0;
+            PatternChanged?.Invoke(0);
             return 0;
         }
 
@@ -911,12 +958,14 @@ public class TrackerGrid : FrameworkElement
         {
             RowOffset += rowsInCurrentPattern;
             currentPatternIndex++;
+            PatternChanged?.Invoke(currentPatternIndex);
         }
 
         if (row < RowOffset)
         {
             RowOffset -= GetRowsInPreviousPattern(currentPatternIndex);
             currentPatternIndex--;
+            PatternChanged?.Invoke(currentPatternIndex);
         }
 
         PatternCurrentRow = row - RowOffset;
@@ -970,7 +1019,6 @@ public class TrackerGrid : FrameworkElement
 
         return column;
     }
-
     public static MidiNoteValueMap? GetMidiNote(Key key)
     {
         if (KeyboardToMidiNote.Map.TryGetValue(key, out var note))

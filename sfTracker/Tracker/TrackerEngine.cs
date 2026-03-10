@@ -3,6 +3,7 @@ using sfTracker.Common;
 using sfTracker.Playback;
 using System;
 using sfTracker.Controls;
+using System.Collections.Generic;
 
 namespace sfTracker.Tracker
 {
@@ -25,7 +26,7 @@ namespace sfTracker.Tracker
         public int CurrentRow { get; set; }
         public int CurrentPattern { get; set; }
         public int CurrentTick { get; set; }
-        public Pattern[] Patterns { get; set; } 
+        public List<Pattern> Patterns { get; set; } 
         public Voice[] ActiveVoices { get; set; }
         public bool[] ChannelMuteStatuses { get; set; }
 
@@ -176,7 +177,7 @@ namespace sfTracker.Tracker
                 CurrentRow = 0; // loop back to the start if no rows left
 
                 // reset to first pattern if at end of Patterns array, otherwise advance to next
-                if (CurrentPattern == Patterns.Length - 1)
+                if (CurrentPattern == Patterns.Count - 1)
                     CurrentPattern = 0;
                 else
                     CurrentPattern++;

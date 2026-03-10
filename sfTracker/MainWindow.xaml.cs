@@ -8,8 +8,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -48,13 +48,9 @@ namespace sfTracker
                 soundFont: "Kirby's_Dream_Land_3.sf2",
                 patterns: [
                     new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount),
-                    //new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount)
                 ],
                 BPM: defaultBPM
             );
-
-            VerticalScrollBar.Maximum = totalRowCount - 1;
-            HorizontalScrollBar.Maximum = Tracker.ChannelCount * Tracker.FieldsPerChannel - 1;
 
             //this.KeyDown += new System.Windows.Input.KeyEventHandler(OnKeyPress);
             //this.KeyUp += new System.Windows.Input.KeyEventHandler(OnKeyRelease);
@@ -66,7 +62,7 @@ namespace sfTracker
             Tracker.PresetList = presets;
         }
 
-        private void InitialiseTracker(string soundFont, Pattern[] patterns, int BPM)
+        private void InitialiseTracker(string soundFont, List<Pattern> patterns, int BPM)
         {
             Engine?.ResetTracker(0);
             Engine?.Dispose();
@@ -91,10 +87,24 @@ namespace sfTracker
             Tracker.Engine = Engine;
             Tracker.Focus();
 
+            // reset frame select if fewer patterns than max visible frames 
+            if (Tracker.Patterns.Count <= Tracker.MaxVisibleFrames)
+            {
+                Tracker.FirstVisibleFrame = 0;
+                Tracker.LastVisibleFrame = Tracker.Patterns.Count;
+            }
+
             ComputePatternBoundaries();
             LoadSoundFont(soundFont);
             EnableEventListeners();
             SelectedSoundFont.Text = $"{soundFont}";
+
+            // set scrollbar maximum values
+            VerticalScrollBar.Maximum = totalRowCount - 1;
+            HorizontalScrollBar.Maximum = Tracker.ChannelCount * Tracker.FieldsPerChannel - 1;
+            FrameVerticalScrollBar.Maximum = Tracker.Patterns.Count - 1;
+            FrameVerticalScrollBar.Visibility = Tracker.Patterns.Count > 1 ? Visibility.Visible : Visibility.Hidden; // hide scrollbar if only 1 pattern
+            RemovePatternButton.IsEnabled = Tracker.Patterns.Count > 1; // disable delete pattern button if only 1 pattern exists
         }
 
         private void DisableEventListeners()
@@ -103,8 +113,10 @@ namespace sfTracker
             Tracker.PlaybackStarted -= StartPlayback;
             Tracker.VerticalScrollbarValueChanged -= SetVerticalScrollbarValue;
             Tracker.HorizontalScrollbarValueChanged -= SetHorizontalScrollbarValue;
+            Tracker.FrameVerticalScrollbarValueChanged -= SetFrameVerticalScrollbarValue;
             Tracker.RowChanged -= Tracker_RowChanged;
             Tracker.ColumnChanged -= Tracker_ColumnChanged;
+            Tracker.PatternChanged -= Tracker_PatternChanged;
             vm.PropertyChanged -= InstrumentChanged;
         }
 
@@ -114,8 +126,10 @@ namespace sfTracker
             Tracker.PlaybackStarted += StartPlayback;
             Tracker.VerticalScrollbarValueChanged += SetVerticalScrollbarValue;
             Tracker.HorizontalScrollbarValueChanged += SetHorizontalScrollbarValue;
+            Tracker.FrameVerticalScrollbarValueChanged += SetFrameVerticalScrollbarValue;
             Tracker.RowChanged += Tracker_RowChanged;
             Tracker.ColumnChanged += Tracker_ColumnChanged;
+            Tracker.PatternChanged += Tracker_PatternChanged;
             vm.PropertyChanged += InstrumentChanged;
         }
 
@@ -205,9 +219,46 @@ namespace sfTracker
             HorizontalScrollBar.Value = value;
         }
 
-        private void Grid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        public void SetFrameVerticalScrollbarValue(double value)
         {
-            if (IsPlaying) return;
+            FrameVerticalScrollBar.Value = value;
+        }
+
+        private void UpdateVisibleFrames(double value)
+        {
+            if (Tracker.Patterns.Count > Tracker.MaxVisibleFrames) // if more patterns than max allowed to display
+            {
+                if (value < Tracker.MaxVisibleFrames) // if scroll value is less than max visible frames, reset them
+                {
+                    Tracker.FirstVisibleFrame = 0;
+                    Tracker.LastVisibleFrame = Tracker.MaxVisibleFrames;
+                    return;
+                }
+
+                // update first and last visible frames based on scroll value
+                if (value == Tracker.LastVisibleFrame)
+                {
+                    Tracker.FirstVisibleFrame++;
+                    Tracker.LastVisibleFrame++;
+                }
+                else
+                {
+                    Tracker.FirstVisibleFrame--;
+                    Tracker.LastVisibleFrame--;
+                }
+            }
+            else
+            {
+                Tracker.LastVisibleFrame = Tracker.Patterns.Count; // last visible frame defaults to pattern number
+            }
+        }
+
+        private void Tracker_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // prevent scroll event firing if mouse not in tracker region
+            Grid trackerSectionGrid = (Grid)sender;
+            Point pos = e.GetPosition(trackerSectionGrid);
+            if (IsPlaying || !CheckCursorInsideGrid(trackerSectionGrid, pos)) { return; }
 
             double change = e.Delta;
 
@@ -223,6 +274,21 @@ namespace sfTracker
             }
         }
 
+        private void FrameSelect_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // prevent scroll event firing if mouse not in tracker region
+            Grid frameSelectGrid = (Grid)sender;
+            Point pos = e.GetPosition(frameSelectGrid);
+            if (IsPlaying || !CheckCursorInsideGrid(frameSelectGrid, pos)) { return; }
+
+            double change = e.Delta;
+
+            if (change < 0)
+                SetFrameVerticalScrollbarValue(FrameVerticalScrollBar.Value + FrameVerticalScrollBar.SmallChange);
+            else if (change > 0)
+                SetFrameVerticalScrollbarValue(FrameVerticalScrollBar.Value - FrameVerticalScrollBar.SmallChange);
+        }
+
         private void Tracker_RowChanged(int newRow)
         {
             IsInternalScrollChange = true;
@@ -234,6 +300,14 @@ namespace sfTracker
         {
             IsInternalScrollChange = true;
             HorizontalScrollBar.Value = newColumn;
+            IsInternalScrollChange = false;
+        }
+
+        private void Tracker_PatternChanged(int newPattern)
+        {
+            IsInternalScrollChange = true;
+            FrameVerticalScrollBar.Value = newPattern;
+            UpdateVisibleFrames(newPattern);
             IsInternalScrollChange = false;
         }
 
@@ -260,6 +334,11 @@ namespace sfTracker
                 Tracker.GlobalCurrentColumn = (int)HorizontalScrollBar.Value;
                 Tracker.Focus();
             }
+        }
+
+        private void FrameVerticalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            Tracker.GlobalCurrentRow = (int)e.NewValue * defaultRowCount;  // TODO: make default row = row count in settings
         }
 
         private void Tracker_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -335,6 +414,12 @@ namespace sfTracker
             }
         }
 
+        private static bool CheckCursorInsideGrid(Grid grid, Point pos)
+        {
+            if (pos.X < 0 || pos.Y < 0 || pos.X > grid.ActualWidth || pos.Y > grid.ActualHeight)
+                return false;
+            return true;
+        }
         protected override void OnMouseDown(MouseButtonEventArgs e)
         {
             double mousePosX = e.GetPosition(this).X;
@@ -385,6 +470,21 @@ namespace sfTracker
         {
             if (e.Key >= Key.A && e.Key <= Key.Z) // prevent key presses moving focus in the preset select window
                 e.Handled = true;
+        }
+
+        private void AddPatternButton_Click(object sender, RoutedEventArgs e)
+        {
+            Tracker.Patterns.Insert(Tracker.currentPatternIndex + 1, new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount));
+            FrameVerticalScrollBar.Value += FrameVerticalScrollBar.SmallChange;
+            InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, defaultBPM);
+        }
+
+        private void RemovePatternButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (Tracker.Patterns.Count == 1) { return; } // don't allow removal when only one pattern exists
+            if (Tracker.currentPatternIndex == Tracker.Patterns.Count - 1) { FrameVerticalScrollBar.Value -= FrameVerticalScrollBar.SmallChange; }
+            Tracker.Patterns.RemoveAt(Tracker.currentPatternIndex); // TODO: consider making it more clear that current pattern is being deleted
+            InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, defaultBPM);
         }
 
         //TODO: try to get this to work properly if i have time
