@@ -32,7 +32,7 @@
             <Setter Property="Y1" Value="0"/>
             <Setter Property="Y2" Value="1000"/>
         </Style>
-        
+
         <!-- template for horizontal slider (scroll) -->
         <ControlTemplate x:Key="HorizontalSliderTemplate" TargetType="Slider">
             <Track x:Name="PART_Track" IsDirectionReversed="False">
@@ -207,7 +207,7 @@
         <Grid Grid.Row="0" Margin="0 5 0 5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="500" />
-                <ColumnDefinition Width="500" />
+                <ColumnDefinition Width="400" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -283,9 +283,20 @@
                                     VerticalAlignment="Bottom"
                                     Margin="10 0 5 10"
                                     Padding="5"
+                                    FontWeight="DemiBold"
+                                    Background="#babae0"
                                     Click="RemovePatternButton_Click"
                                 >
-                                    Remove Pattern
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter Property="Opacity" Value="0.25"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    Remove Selected Pattern
                                 </Button>
                             </Grid>
                             <Grid Grid.Column="1">
@@ -294,8 +305,19 @@
                                     VerticalAlignment="Bottom"
                                     Margin="5 0 10 10"
                                     Padding="5"
+                                    FontWeight="DemiBold"
+                                    Background="#babae0"
                                     Click="AddPatternButton_Click"
                                 >
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter Property="Opacity" Value="0.25"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
                                     Add Pattern
                                 </Button>
                             </Grid>
@@ -313,11 +335,6 @@
                     </Grid.RowDefinitions>
                     <Border Grid.Column="0" BorderThickness="0 0 0 1" BorderBrush="FloralWhite">
                         <Grid Grid.Row="0" Background="#353554">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
                             <TextBlock
                                 x:Name="SettingsSection"
                                 Text="Settings"
@@ -338,46 +355,214 @@
                             <ColumnDefinition Width="5" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" BorderThickness="1" BorderBrush="FloralWhite" Margin="10 10 0 10">
-                            <StackPanel Margin="10">
-
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="BPM:" Width="100"/>
+                        <Border Grid.Column="0" BorderThickness="1" BorderBrush="Transparent" Margin="10 10 0 10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="0 12 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="15"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        HorizontalAlignment="Left"
+                                        Grid.Column="0"
+                                        Text="BPM:"
+                                        Foreground="FloralWhite"
+                                        FontSize="13"
+                                        FontWeight="DemiBold"
+                                    />
                                     <TextBox
-                                        Width="80"
+                                        x:Name="BPMTextBox"
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
                                         Text="{Binding BPM, UpdateSourceTrigger=LostFocus}"
-                                        PreviewTextInput="NumberOnly"
+                                        KeyDown="TextBox_KeyDown"
+                                        Tag="BPM_Value"
+                                        Width="40"
+                                        Height="20"
+                                        Background="#babae0"
+                                        FontWeight="DemiBold"
                                     />
-                                </StackPanel>
-
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Speed:" Width="100"/>
+                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                        <RepeatButton
+                                            x:Name="BPM_Up_Button"
+                                            Tag="BPM_Up" Content="▲"
+                                            FontSize="5"
+                                            Width="15"
+                                            Height="10"
+                                            Click="SettingsArrow_Click"
+                                            Background="#d1d1ed"
+                                        />
+                                        <RepeatButton
+                                            x:Name="BPM_Down_Button"
+                                            Tag="BPM_Down"
+                                            Content="▼"
+                                            FontSize="5"
+                                            Width="15"
+                                            Height="10"
+                                            Click="SettingsArrow_Click"
+                                            Background="#d1d1ed"
+                                        />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Grid.Row="1" Margin="0 12 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="15"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        HorizontalAlignment="Left"
+                                        Grid.Column="0"
+                                        Text="Speed:"
+                                        Foreground="FloralWhite"
+                                        FontSize="13"
+                                        FontWeight="DemiBold"
+                                    />
                                     <TextBox
-                                        Width="80"
+                                        x:Name="SpeedTextBox"
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
                                         Text="{Binding Speed, UpdateSourceTrigger=LostFocus}"
-                                        PreviewTextInput="NumberOnly"
+                                        KeyDown="TextBox_KeyDown"
+                                        Tag="Speed_Value"
+                                        Width="40"
+                                        Height="20"
+                                        Background="#babae0"
+                                        FontWeight="DemiBold"
                                     />
-                                </StackPanel>
-
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Row Count:" Width="100"/>
+                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                        <RepeatButton
+                                            x:Name="Speed_Up_Button"
+                                            Tag="Speed_Up"
+                                            Content="▲"
+                                            FontSize="5"
+                                            Width="15"
+                                            Height="10"
+                                            Click="SettingsArrow_Click"
+                                            Background="#d1d1ed"
+                                        />
+                                        <RepeatButton
+                                            x:Name="Speed_Down_Button"
+                                            Tag="Speed_Down"
+                                            Content="▼"
+                                            FontSize="5"
+                                            Width="15"
+                                            Height="10"
+                                            Click="SettingsArrow_Click"
+                                            Background="#d1d1ed"
+                                        />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Grid.Row="2" Margin="0 12 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="15"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        HorizontalAlignment="Left"
+                                        Grid.Column="0"
+                                        Text="Rows Per Frame:"
+                                        Foreground="FloralWhite"
+                                        FontSize="13"
+                                        FontWeight="DemiBold"
+                                    />
                                     <TextBox
-                                        Width="80"
+                                        x:Name="RowCountTextBox"
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
                                         Text="{Binding RowCount, UpdateSourceTrigger=LostFocus}"
-                                        PreviewTextInput="NumberOnly"
+                                        KeyDown="TextBox_KeyDown"
+                                        Tag="RowCount_Value"
+                                        Width="40"
+                                        Height="20"
+                                        Background="#babae0"
+                                        FontWeight="DemiBold"
                                     />
-                                </StackPanel>
-
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Row Highlight:" Width="100"/>
+                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                        <RepeatButton
+                                            x:Name="RowCount_Up_Button"
+                                            Tag="RowCount_Up"
+                                            Content="▲"
+                                            FontSize="5"
+                                            Width="15"
+                                            Height="10"
+                                            Click="SettingsArrow_Click"
+                                            Background="#d1d1ed"
+                                        />
+                                        <RepeatButton
+                                            x:Name="RowCount_Down_Button"
+                                            Tag="RowCount_Down"
+                                            Content="▼"
+                                            FontSize="5"
+                                            Width="15"
+                                            Height="10"
+                                            Click="SettingsArrow_Click"
+                                            Background="#d1d1ed"
+                                        />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Grid.Row="3" Margin="0 12 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="15"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        HorizontalAlignment="Left"
+                                        Grid.Column="0"
+                                        Text="Row Highlight:"
+                                        Foreground="FloralWhite"
+                                        FontSize="13"
+                                        FontWeight="DemiBold"
+                                    />
                                     <TextBox
-                                        Width="80"
+                                        x:Name="RowHighlightTextBox"
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
                                         Text="{Binding RowHighlight, UpdateSourceTrigger=LostFocus}"
-                                        PreviewTextInput="NumberOnly"
+                                        KeyDown="TextBox_KeyDown"
+                                        Tag="RowHighlight_Value"
+                                        Width="40"
+                                        Height="20"
+                                        Background="#babae0"
+                                        FontWeight="DemiBold"
                                     />
-                                </StackPanel>
-
-                            </StackPanel>
+                                    <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                        <RepeatButton
+                                            x:Name="RowHighlight_Up_Button"
+                                            Tag="RowHighlight_Up"
+                                            Content="▲"
+                                            FontSize="5"
+                                            Width="15"
+                                            Height="10"
+                                            Click="SettingsArrow_Click"
+                                            Background="#d1d1ed"
+                                        />
+                                        <RepeatButton
+                                            x:Name="RowHighlight_Down_Button"
+                                            Tag="RowHighlight_Down"
+                                            Content="▼"
+                                            FontSize="5"
+                                            Width="15"
+                                            Height="10"
+                                            Click="SettingsArrow_Click"
+                                            Background="#d1d1ed"
+                                        />
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
                         </Border>
 
                         <Border Grid.Column="2" BorderThickness="1" BorderBrush="FloralWhite" Margin="5 10 10 10">
@@ -426,6 +611,7 @@
                                 Foreground="FloralWhite"
                             />
                             <Button
+                                x:Name="OpenSF2_Button"
                                 Grid.Column="3"
                                 VerticalAlignment="Center"
                                 Margin="10 5 10 5"

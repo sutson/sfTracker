@@ -1,4 +1,5 @@
 ﻿using sfTracker.Audio;
+using sfTracker.Common;
 using sfTracker.GUI;
 using sfTracker.Helpers;
 using sfTracker.Playback;
@@ -10,6 +11,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -46,7 +48,7 @@ namespace sfTracker
             InitialiseTracker(
                 soundFont: "Kirby's_Dream_Land_3.sf2",
                 patterns: [
-                    new Pattern(rowCount: vm.RowCount, channels: defaultChannelCount),
+                    new Pattern(rowCount: ProgramConstants.MaxRowCount, channels: defaultChannelCount),
                 ],
                 BPM: vm.BPM
             );
@@ -79,6 +81,7 @@ namespace sfTracker
             Engine.Tracker.SetBPM(BPM);
             
             Tracker.ChannelCount = defaultChannelCount;
+            Tracker.RowsPerPattern = vm.RowCount;
             Tracker.MuteButtonStartPositionsX = new double[defaultChannelCount];
             Tracker.SoloButtonStartPositionsX = new double[defaultChannelCount];
             Tracker.ChannelStatuses = vm.Columns;
@@ -86,7 +89,6 @@ namespace sfTracker
             Tracker.Patterns = Engine.Tracker.Patterns;
             Tracker.Engine = Engine;
             Tracker.RowHighlight = vm.RowHighlight;
-            Tracker.RowsPerPattern = vm.RowCount;
             Tracker.Focus();
 
             // reset frame select if fewer patterns than max visible frames 
@@ -199,12 +201,14 @@ namespace sfTracker
             if (!IsPlaying)
             {
                 IsPlaying = true;
+                HandleSettingsButtonActivity(isEnabled: false);
                 playbackClock.Restart();
                 CompositionTarget.Rendering += OnFrame;
             }
             else
             {
                 IsPlaying = false;
+                HandleSettingsButtonActivity(isEnabled: true);
                 playbackClock.Stop();
                 CompositionTarget.Rendering -= OnFrame;
             }
@@ -267,15 +271,9 @@ namespace sfTracker
             double change = e.Delta;
 
             if (change < 0)
-            {
                 SetVerticalScrollbarValue(VerticalScrollBar.Value + VerticalScrollBar.SmallChange);
-                Tracker.GlobalCurrentRow++;
-            }
             else if (change > 0)
-            {
                 SetVerticalScrollbarValue(VerticalScrollBar.Value - VerticalScrollBar.SmallChange);
-                Tracker.GlobalCurrentRow--;
-            }
         }
 
         private void FrameSelect_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -478,7 +476,7 @@ namespace sfTracker
 
         private void AddPatternButton_Click(object sender, RoutedEventArgs e)
         {
-            Tracker.Patterns.Insert(Tracker.currentPatternIndex + 1, new Pattern(rowCount: vm.RowCount, channels: defaultChannelCount));
+            Tracker.Patterns.Insert(Tracker.currentPatternIndex + 1, new Pattern(rowCount: ProgramConstants.MaxRowCount, channels: defaultChannelCount));
             FrameVerticalScrollBar.Value += FrameVerticalScrollBar.SmallChange;
             InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, vm.BPM);
         }
@@ -503,6 +501,54 @@ namespace sfTracker
             UpdateTrackerSettings();
         }
 
+        private void SettingsArrow_Click(object sender, RoutedEventArgs e)
+        {
+            RepeatButton button = (RepeatButton)sender;
+            string tag = button.Tag.ToString();
+
+            int step = 1;
+            if (Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift))
+                step = 5;
+
+            switch (tag)
+            {
+                case "BPM_Up":
+                    vm.BPM += step;
+                    break;
+
+                case "BPM_Down":
+                    vm.BPM -= step;
+                    break;
+
+                case "Speed_Up":
+                    vm.Speed += step;
+                    break;
+
+                case "Speed_Down":
+                    vm.Speed -= step;
+                    break;
+
+                case "RowCount_Up":
+                    vm.RowCount += step;
+                    break;
+
+                case "RowCount_Down":
+                    vm.RowCount -= step;
+                    break;
+
+                case "RowHighlight_Up":
+                    vm.RowHighlight += step;
+                    break;
+
+                case "RowHighlight_Down":
+                    vm.RowHighlight -= step;
+                    break;
+            }
+
+            Tracker.Focus();
+            UpdateTrackerSettings();
+        }
+
         private void UpdateTrackerSettings()
         {
             if (vm.BPM != Engine.Tracker.BPM)
@@ -516,14 +562,53 @@ namespace sfTracker
             else if (vm.RowCount != Tracker.RowsPerPattern)
             {
                 Engine.Tracker.EarlyStoppingIndex = vm.RowCount;
-                Tracker.RowsPerPattern = vm.RowCount;
                 Tracker.GlobalCurrentRow = 0; // reset to start to avoid indexing issues
+                Tracker.RowsPerPattern = vm.RowCount;
+                Tracker.ResetToFirstRow();
                 InitialiseTracker(SelectedSoundFont.Text, Engine.Tracker.Patterns, vm.BPM);
             }
             else if (vm.RowHighlight != Tracker.RowHighlight)
             {
                 Tracker.RowHighlight = vm.RowHighlight;
             }
+        }
+
+        private void TextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                Keyboard.ClearFocus();
+                Tracker.Focus();
+                UpdateTrackerSettings();
+            }
+        }
+
+        private void HandleSettingsButtonActivity(bool isEnabled)
+        {
+            AddPatternButton.IsEnabled = isEnabled;
+            RemovePatternButton.IsEnabled = Tracker.Patterns.Count > 1 && isEnabled;
+
+            BPMTextBox.IsReadOnly = !isEnabled;
+            BPMTextBox.Focusable = isEnabled;
+            BPM_Up_Button.IsEnabled = isEnabled;
+            BPM_Down_Button.IsEnabled = isEnabled;
+
+            SpeedTextBox.IsReadOnly = !isEnabled;
+            SpeedTextBox.Focusable = isEnabled;
+            Speed_Up_Button.IsEnabled = isEnabled;
+            Speed_Down_Button.IsEnabled = isEnabled;
+
+            RowCountTextBox.IsReadOnly = !isEnabled;
+            RowCountTextBox.Focusable = isEnabled;
+            RowCount_Up_Button.IsEnabled = isEnabled;
+            RowCount_Down_Button.IsEnabled = isEnabled;
+
+            RowHighlightTextBox.IsReadOnly = !isEnabled;
+            RowHighlightTextBox.Focusable = isEnabled;
+            RowHighlight_Up_Button.IsEnabled = isEnabled;
+            RowHighlight_Down_Button.IsEnabled = isEnabled;
+
+            OpenSF2_Button.IsEnabled = isEnabled;
         }
 
         //private void UpdatePatternsRowCount()

@@ -15,7 +15,6 @@ using System.Windows.Media;
 namespace sfTracker.GUI;
 public class TrackerGrid : FrameworkElement
 {
-    private int RowCount = 0;
     private int RowOffset = 0;
     private int SelectedBank = -1;
     private int SelectedInstrument = -1;
@@ -956,7 +955,7 @@ public class TrackerGrid : FrameworkElement
 
         else if (row < RowOffset)
         {
-            RowOffset -= GetRowsInPreviousPattern(currentPatternIndex);
+            RowOffset -= RowsPerPattern;
             currentPatternIndex--;
             PatternChanged?.Invoke(currentPatternIndex);
         }
