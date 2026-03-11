@@ -26,6 +26,8 @@ namespace sfTracker.Tracker
         public int CurrentRow { get; set; }
         public int CurrentPattern { get; set; }
         public int CurrentTick { get; set; }
+        public int EarlyStoppingIndex { get; set; } // variable is set when the row count is changed in the GUI, moves to next pattern when reached
+
         public List<Pattern> Patterns { get; set; } 
         public Voice[] ActiveVoices { get; set; }
         public bool[] ChannelMuteStatuses { get; set; }
@@ -172,7 +174,10 @@ namespace sfTracker.Tracker
                 CurrentRow++; // advance to next row
             }
 
-            if (Patterns[CurrentPattern] != null && CurrentRow >= Patterns[CurrentPattern].RowCount)
+            if (
+                Patterns[CurrentPattern] != null &&
+                (CurrentRow >= Patterns[CurrentPattern].RowCount || CurrentRow >= EarlyStoppingIndex)
+            )
             {
                 CurrentRow = 0; // loop back to the start if no rows left
 

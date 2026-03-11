@@ -23,7 +23,6 @@ namespace sfTracker
         private readonly MainViewModel vm;
         private readonly int defaultBPM = 120;
         private readonly int defaultChannelCount = 8;
-        private readonly int defaultRowCount = 32;
         private readonly double MousePositionOffsetX = 40;
         private readonly double MousePositionOffsetY = 450;
 
@@ -47,9 +46,9 @@ namespace sfTracker
             InitialiseTracker(
                 soundFont: "Kirby's_Dream_Land_3.sf2",
                 patterns: [
-                    new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount),
+                    new Pattern(rowCount: vm.RowCount, channels: defaultChannelCount),
                 ],
-                BPM: defaultBPM
+                BPM: vm.BPM
             );
 
             //this.KeyDown += new System.Windows.Input.KeyEventHandler(OnKeyPress);
@@ -76,6 +75,7 @@ namespace sfTracker
             Engine.Tracker.CurrentPannings = new PanEffect[defaultChannelCount];
             Engine.Tracker.TargetPannings = new PanEffect[defaultChannelCount];
             Engine.Tracker.ChannelMuteStatuses = new bool[defaultChannelCount];
+            Engine.Tracker.EarlyStoppingIndex = vm.RowCount;
             Engine.Tracker.SetBPM(BPM);
             
             Tracker.ChannelCount = defaultChannelCount;
@@ -85,6 +85,8 @@ namespace sfTracker
             Tracker.RowWidth = defaultChannelCount * Tracker.ColumnWidth;
             Tracker.Patterns = Engine.Tracker.Patterns;
             Tracker.Engine = Engine;
+            Tracker.RowHighlight = vm.RowHighlight;
+            Tracker.RowsPerPattern = vm.RowCount;
             Tracker.Focus();
 
             // reset frame select if fewer patterns than max visible frames 
@@ -146,15 +148,17 @@ namespace sfTracker
             double time = playbackClock.Elapsed.TotalSeconds;
             double rowDuration = (60.0 / (Engine.Tracker.BPM * Engine.Tracker.TicksPerBeat)) * Engine.Tracker.Speed;
             double rowsAdvanced = Math.Floor(time / rowDuration);
-            
+
             Tracker.CurrentRowPosition = (rowsAdvanced + resumePlaybackRow) % totalRowCount;
-            SetVerticalScrollbarValue(Tracker.CurrentRowPosition);
+            if (Tracker.CurrentRowPosition == 0) { Tracker.ResetToFirstRow(); } // need this to prevent frames scrolling back after loop ends
             Tracker.GlobalCurrentRow = (int)Tracker.CurrentRowPosition;
+            SetVerticalScrollbarValue(Tracker.CurrentRowPosition);
         }
 
         private void ComputePatternBoundaries()
         {
             int currentRow = 0;
+            patternBoundaries.Clear();
 
             for (int i = 0; i < Tracker.Patterns.Count; i++)
             {
@@ -164,10 +168,10 @@ namespace sfTracker
                 {
                     Index = i,
                     StartingRow = currentRow,
-                    RowCount = pattern.RowCount
+                    RowCount = Tracker.RowsPerPattern
                 });
 
-                currentRow += pattern.RowCount;
+                currentRow += Tracker.RowsPerPattern;
             }
 
             totalRowCount = currentRow;
@@ -338,7 +342,7 @@ namespace sfTracker
 
         private void FrameVerticalScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            Tracker.GlobalCurrentRow = (int)e.NewValue * defaultRowCount;  // TODO: make default row = row count in settings
+            Tracker.GlobalCurrentRow = (int)e.NewValue * vm.RowCount;
         }
 
         private void Tracker_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -474,9 +478,9 @@ namespace sfTracker
 
         private void AddPatternButton_Click(object sender, RoutedEventArgs e)
         {
-            Tracker.Patterns.Insert(Tracker.currentPatternIndex + 1, new Pattern(rowCount: defaultRowCount, channels: defaultChannelCount));
+            Tracker.Patterns.Insert(Tracker.currentPatternIndex + 1, new Pattern(rowCount: vm.RowCount, channels: defaultChannelCount));
             FrameVerticalScrollBar.Value += FrameVerticalScrollBar.SmallChange;
-            InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, defaultBPM);
+            InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, vm.BPM);
         }
 
         private void RemovePatternButton_Click(object sender, RoutedEventArgs e)
@@ -486,6 +490,62 @@ namespace sfTracker
             Tracker.Patterns.RemoveAt(Tracker.currentPatternIndex); // TODO: consider making it more clear that current pattern is being deleted
             InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, defaultBPM);
         }
+
+        private void NumberOnly(object sender, TextCompositionEventArgs e)
+        {
+            e.Handled = !int.TryParse(e.Text, out _);
+        }
+
+        private void Window_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            Keyboard.ClearFocus();
+            Tracker.Focus();
+            UpdateTrackerSettings();
+        }
+
+        private void UpdateTrackerSettings()
+        {
+            if (vm.BPM != Engine.Tracker.BPM)
+            {
+                Engine.Tracker.SetBPM(vm.BPM);
+            }
+            else if (vm.Speed != Engine.Tracker.Speed)
+            {
+                Engine.Tracker.SetSpeed(vm.Speed);
+            }
+            else if (vm.RowCount != Tracker.RowsPerPattern)
+            {
+                Engine.Tracker.EarlyStoppingIndex = vm.RowCount;
+                Tracker.RowsPerPattern = vm.RowCount;
+                Tracker.GlobalCurrentRow = 0; // reset to start to avoid indexing issues
+                InitialiseTracker(SelectedSoundFont.Text, Engine.Tracker.Patterns, vm.BPM);
+            }
+            else if (vm.RowHighlight != Tracker.RowHighlight)
+            {
+                Tracker.RowHighlight = vm.RowHighlight;
+            }
+        }
+
+        //private void UpdatePatternsRowCount()
+        //{
+        //    // TODO: maybe find a way to allow removal of rows without deleting the data
+        //    // this currently just overwrites any data which is not within the range and it's gone forever
+        //    for (int i = 0; i < Tracker.Patterns.Count; i++)
+        //    {
+        //        Pattern oldPattern = Tracker.Patterns[i];
+        //        Pattern newPattern = new Pattern(rowCount: vm.RowCount, channels: defaultChannelCount);
+        //        for (int j = 0; j < vm.RowCount; j++)
+        //        {
+        //            if (j == oldPattern.Rows.Length) { break; }
+        //            newPattern.Rows[j] = oldPattern.Rows[j];
+        //        }
+
+        //        Tracker.GlobalCurrentRow = 0; // reset to start to avoid indexing issues
+        //        Engine.Tracker.Patterns[i] = newPattern;
+        //    }
+
+        //    InitialiseTracker(SelectedSoundFont.Text, Engine.Tracker.Patterns, vm.BPM);
+        //}
 
         //TODO: try to get this to work properly if i have time
 

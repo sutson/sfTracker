@@ -32,6 +32,8 @@ public class TrackerGrid : FrameworkElement
     public int FirstVisibleRow = 0;
     public int TotalRowCount = 0;
     public bool IsPlaying = false;
+    public int RowHighlight = 4;
+    public int RowsPerPattern = 0;
 
     // variables for channel buttons (mute/solo)
     public ObservableCollection<TrackerColumn> ChannelStatuses;
@@ -140,9 +142,7 @@ public class TrackerGrid : FrameworkElement
         {
             var brush = (i == currentPatternIndex) ? Brushes.ActivePatternBrush : Brushes.InactivePatternBrush;
 
-            RowCount = Patterns[i].RowCount; // get number of rows in current pattern
-
-            for (int row = 0; row < RowCount; row++)
+            for (int row = 0; row < RowsPerPattern; row++)
             {
                 int absoluteRow = globalRowOffset + row;
                 double y = (absoluteRow - FirstVisibleRow) * RowHeight;
@@ -153,8 +153,8 @@ public class TrackerGrid : FrameworkElement
                         RenderText(
                             GetRowString(absoluteRow),
                             (i == currentPatternIndex)
-                                ? (row % 4 == 0 ? Brushes.ActivePatternBrush : Brushes.LowOpacityTextBrush)
-                                : (row % 4 == 0 ? Brushes.InactiveTextBrush : Brushes.LowOpacityInactiveTextBrush)
+                                ? (row % RowHighlight == 0 ? Brushes.ActivePatternBrush : Brushes.LowOpacityTextBrush)
+                                : (row % RowHighlight == 0 ? Brushes.InactiveTextBrush : Brushes.LowOpacityInactiveTextBrush)
                         ),
                         new Point(-32, y)
                     );
@@ -170,7 +170,7 @@ public class TrackerGrid : FrameworkElement
                     var cell = Patterns[i].Rows[row].Cells[channel];
 
                     // highlight every fourth row
-                    if (row % 4 == 0)
+                    if (row % RowHighlight == 0)
                     {
                         context.DrawRectangle(
                             i == currentPatternIndex
@@ -216,7 +216,7 @@ public class TrackerGrid : FrameworkElement
                 }
             }
 
-            globalRowOffset += RowCount;
+            globalRowOffset += RowsPerPattern;
         }
 
         // highlight current row
@@ -481,13 +481,13 @@ public class TrackerGrid : FrameworkElement
         int rowText = absoluteRow;
         if (currentPatternIndex > 0)
         {
-            if (rowText >= Patterns[currentPatternIndex - 1].RowCount)
-                rowText -= Patterns[currentPatternIndex - 1].RowCount;
+            if (rowText >= RowsPerPattern)
+                rowText -= RowsPerPattern;
         }
         else
         {
-            if (rowText >= Patterns[0].RowCount)
-                rowText -= Patterns[0].RowCount;
+            if (rowText >= RowsPerPattern)
+                rowText -= RowsPerPattern;
         }
 
         var rowStr = rowText.ToString();
@@ -941,27 +941,20 @@ public class TrackerGrid : FrameworkElement
     }
     private int WrapRow(int row)
     {
-        int rowsInCurrentPattern = Patterns[currentPatternIndex].Rows.Length;
-
-        if (row >= TotalRowCount - 1)
+        if (row < 0 || row >= TotalRowCount)
         {
-            RowOffset = 0;
-            currentPatternIndex = 0;
-            PatternChanged?.Invoke(0);
+            ResetToFirstRow();
             return 0;
         }
 
-        if (row < 0)
-            return 0;
-
-        if (row - RowOffset >= rowsInCurrentPattern)
+        else if (row - RowOffset >= RowsPerPattern)
         {
-            RowOffset += rowsInCurrentPattern;
+            RowOffset += RowsPerPattern;
             currentPatternIndex++;
             PatternChanged?.Invoke(currentPatternIndex);
         }
 
-        if (row < RowOffset)
+        else if (row < RowOffset)
         {
             RowOffset -= GetRowsInPreviousPattern(currentPatternIndex);
             currentPatternIndex--;
@@ -971,6 +964,13 @@ public class TrackerGrid : FrameworkElement
         PatternCurrentRow = row - RowOffset;
 
         return row;
+    }
+
+    public void ResetToFirstRow()
+    {
+        RowOffset = 0;
+        currentPatternIndex = 0;
+        PatternChanged?.Invoke(0);
     }
 
     private int WrapColumn(int column)

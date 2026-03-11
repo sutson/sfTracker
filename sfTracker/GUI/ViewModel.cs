@@ -1,4 +1,5 @@
 ﻿using MeltySynth;
+using sfTracker.Common;
 using sfTracker.Tracker;
 using System;
 using System.Collections.Generic;
@@ -59,6 +60,72 @@ namespace sfTracker.GUI
         {
             for (int i = 0; i < channelCount; i++)
                 Columns.Add(new TrackerColumn { Index = i, ColumnWidth = columnWidth });
+        }
+
+
+        private int bpm = 120;
+        public int BPM
+        {
+            get => bpm;
+            set
+            {
+                int clampedBPM = GetClampedValue(value, ProgramConstants.MinBPM, ProgramConstants.MaxBPM);
+                if (bpm != clampedBPM)
+                {
+                    bpm = clampedBPM;
+                    OnPropertyChanged(nameof(BPM));
+                }
+            }
+        }
+
+        private int speed = 6;
+        public int Speed
+        {
+            get => speed;
+            set
+            {
+                int clampedSpeed = GetClampedValue(value, ProgramConstants.MinSpeed, ProgramConstants.MaxSpeed);
+                if (speed != clampedSpeed)
+                {
+                    speed = clampedSpeed;
+                    OnPropertyChanged(nameof(Speed));
+                }
+            }
+        }
+
+        private int rowCount = 32;
+        public int RowCount
+        {
+            get => rowCount;
+            set
+            {
+                int clampedRowCount = GetClampedValue(value, ProgramConstants.MinRowCount, ProgramConstants.MaxRowCount);
+                if (rowCount != clampedRowCount)
+                {
+                    rowCount = clampedRowCount;
+                    OnPropertyChanged(nameof(RowCount));
+                }
+            }
+        }
+
+        private int rowHighlight = 4;
+        public int RowHighlight
+        {
+            get => rowHighlight;
+            set
+            {
+                int clampedRowHighlight = GetClampedValue(value, ProgramConstants.MinRowHighlight, ProgramConstants.MaxRowHighlight);
+                if (rowHighlight != clampedRowHighlight)
+                {
+                    rowHighlight = clampedRowHighlight;
+                    OnPropertyChanged(nameof(RowHighlight));
+                }
+            }
+        }
+
+        private static int GetClampedValue(int value, int minValue, int maxValue)
+        {
+            return Math.Clamp(value, minValue, maxValue);
         }
     }
 }
