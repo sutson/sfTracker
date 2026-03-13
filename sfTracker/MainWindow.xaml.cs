@@ -773,27 +773,6 @@ namespace sfTracker
             return "";
         }
 
-        //private void UpdatePatternsRowCount()
-        //{
-        //    // TODO: maybe find a way to allow removal of rows without deleting the data
-        //    // this currently just overwrites any data which is not within the range and it's gone forever
-        //    for (int i = 0; i < Tracker.Patterns.Count; i++)
-        //    {
-        //        Pattern oldPattern = Tracker.Patterns[i];
-        //        Pattern newPattern = new Pattern(rowCount: vm.RowCount, channels: defaultChannelCount);
-        //        for (int j = 0; j < vm.RowCount; j++)
-        //        {
-        //            if (j == oldPattern.Rows.Length) { break; }
-        //            newPattern.Rows[j] = oldPattern.Rows[j];
-        //        }
-
-        //        Tracker.GlobalCurrentRow = 0; // reset to start to avoid indexing issues
-        //        Engine.Tracker.Patterns[i] = newPattern;
-        //    }
-
-        //    InitialiseTracker(SelectedSoundFont.Text, Engine.Tracker.Patterns, vm.BPM);
-        //}
-
         //TODO: try to get this to work properly if i have time
 
         //private void OnKeyPress(object sender, System.Windows.Input.KeyEventArgs e)
