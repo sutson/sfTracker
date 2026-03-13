@@ -1,4 +1,6 @@
-﻿namespace sfTracker.Playback
+﻿using System.Text.Json.Serialization;
+
+namespace sfTracker.Playback
 {
     /// <summary>
     /// Class which models a pattern which contains a group of <c>Row</c>s with <c>Cell</c>s
@@ -7,6 +9,12 @@
     {
         public int RowCount => Rows.Length;
         public Row[] Rows { get; }
+
+        [JsonConstructor] // need this for saving/loading files, Json requires the constructor to match the fields exactly
+        public Pattern(Row[] rows)
+        {
+            Rows = rows;
+        }
 
         public Pattern(int rowCount, int channels)
         {

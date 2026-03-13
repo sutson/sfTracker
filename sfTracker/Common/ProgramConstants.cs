@@ -27,5 +27,13 @@ namespace sfTracker.Common
 
         public const int MinRowHighlight = 1;
         public const int MaxRowHighlight = 32;
+
+        public const string DefaultSoundFont = "Kirby's_Dream_Land_3.sf2";
+
+        public const int DefaultBPM = 120;
+        public const int DefaultSpeed = 6;
+        public const int DefaultRowCount = 32;
+        public const int DefaultRowHighlight = 4;
+        public const int DefaultChannelCount = 8;
     }
 }

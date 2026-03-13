@@ -115,7 +115,7 @@ namespace sfTracker.Tracker
                 if (Math.Abs(diff) < 2)
                     current = target; // if the difference between current and target is 0 or 1, simply set it
                 else 
-                    current += diff / 2; // otherwise gradually update the volume value based on the difference
+                    current += diff; // otherwise gradually update the volume value based on the difference
 
                 // set the volume of the current channel
                 CurrentVolumes[channel] = current;
@@ -147,7 +147,7 @@ namespace sfTracker.Tracker
                 if (Math.Abs(diff) < 2)
                     current.Value = target.Value; // if the difference between current and target is 0 or 1, simply set it
                 else
-                    current.Value -= diff / 4; // otherwise gradually update the panning value based on the difference
+                    current.Value -= diff; // otherwise gradually update the panning value based on the difference
 
                 // set the panning of the current channel
                 CurrentPannings[channel] = current;

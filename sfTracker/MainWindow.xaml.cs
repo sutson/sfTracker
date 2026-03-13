@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -23,8 +25,6 @@ namespace sfTracker
         private SynthEngine Engine;
         private readonly Stopwatch playbackClock = new();
         private readonly MainViewModel vm;
-        private readonly int defaultBPM = 120;
-        private readonly int defaultChannelCount = 8;
         private readonly double MousePositionOffsetX = 40;
         private readonly double MousePositionOffsetY = 450;
 
@@ -37,18 +37,19 @@ namespace sfTracker
         public bool IsPlaying = false;
         public double currentRowPosition;
         public int currentlyPlayingNote;
+        private string ProjectTitle = "";
 
         public MainWindow()
         {
             InitializeComponent();
             vm = new MainViewModel();
-            vm.GetColumns(defaultChannelCount, Tracker.ColumnWidth);
+            vm.GetColumns(ProgramConstants.DefaultChannelCount, Tracker.ColumnWidth);
             DataContext = vm;
 
             InitialiseTracker(
-                soundFont: "Kirby's_Dream_Land_3.sf2",
+                soundFont: ProgramConstants.DefaultSoundFont,
                 patterns: [
-                    new Pattern(rowCount: ProgramConstants.MaxRowCount, channels: defaultChannelCount),
+                    new Pattern(rowCount: ProgramConstants.MaxRowCount, channels: ProgramConstants.DefaultChannelCount),
                 ],
                 BPM: vm.BPM
             );
@@ -71,21 +72,21 @@ namespace sfTracker
 
             Engine = new SynthEngine(soundFont);
             Engine.Tracker.Patterns = patterns;
-            Engine.Tracker.ActiveVoices = new Voice[defaultChannelCount];
-            Engine.Tracker.CurrentVolumes = new int[defaultChannelCount];
-            Engine.Tracker.TargetVolumes = new int[defaultChannelCount];
-            Engine.Tracker.CurrentPannings = new PanEffect[defaultChannelCount];
-            Engine.Tracker.TargetPannings = new PanEffect[defaultChannelCount];
-            Engine.Tracker.ChannelMuteStatuses = new bool[defaultChannelCount];
+            Engine.Tracker.ActiveVoices = new Voice[ProgramConstants.DefaultChannelCount];
+            Engine.Tracker.CurrentVolumes = new int[ProgramConstants.DefaultChannelCount];
+            Engine.Tracker.TargetVolumes = new int[ProgramConstants.DefaultChannelCount];
+            Engine.Tracker.CurrentPannings = new PanEffect[ProgramConstants.DefaultChannelCount];
+            Engine.Tracker.TargetPannings = new PanEffect[ProgramConstants.DefaultChannelCount];
+            Engine.Tracker.ChannelMuteStatuses = new bool[ProgramConstants.DefaultChannelCount];
             Engine.Tracker.EarlyStoppingIndex = vm.RowCount;
             Engine.Tracker.SetBPM(BPM);
             
-            Tracker.ChannelCount = defaultChannelCount;
+            Tracker.ChannelCount = ProgramConstants.DefaultChannelCount;
             Tracker.RowsPerPattern = vm.RowCount;
-            Tracker.MuteButtonStartPositionsX = new double[defaultChannelCount];
-            Tracker.SoloButtonStartPositionsX = new double[defaultChannelCount];
+            Tracker.MuteButtonStartPositionsX = new double[ProgramConstants.DefaultChannelCount];
+            Tracker.SoloButtonStartPositionsX = new double[ProgramConstants.DefaultChannelCount];
             Tracker.ChannelStatuses = vm.Columns;
-            Tracker.RowWidth = defaultChannelCount * Tracker.ColumnWidth;
+            Tracker.RowWidth = ProgramConstants.DefaultChannelCount * Tracker.ColumnWidth;
             Tracker.Patterns = Engine.Tracker.Patterns;
             Tracker.Engine = Engine;
             Tracker.RowHighlight = vm.RowHighlight;
@@ -399,21 +400,10 @@ namespace sfTracker
         // https://youtu.be/Heq8qve1Vts
         private void Button_OpenSF2(object sender, RoutedEventArgs e)
         {
-            var dialog = new OpenFileDialog
-            {
-                Title = "Select .sf2 file",
-                Filter = "SoundFont Files (*.sf2)|*.sf2",
-                Multiselect = false
-            };
-
-            DialogResult result = dialog.ShowDialog();
-
-            if (result == System.Windows.Forms.DialogResult.OK)
-            {
-                string fileName = dialog.FileName;
-                string soundFontName = fileName[(fileName.LastIndexOf('\\') + 1)..];
-                InitialiseTracker(soundFontName, Engine.Tracker.Patterns, defaultBPM);
-            }
+            string fileName = GetOpenFileDialog(title: "Select.sf2 file", filter: "SoundFont Files (*.sf2)|*.sf2");
+            if (fileName == "") { return; }
+            string soundFontName = GetParsedFileName(fileName);
+            InitialiseTracker(soundFontName, Engine.Tracker.Patterns, ProgramConstants.DefaultBPM);
         }
 
         private static bool CheckCursorInsideGrid(Grid grid, Point pos)
@@ -476,7 +466,13 @@ namespace sfTracker
 
         private void AddPatternButton_Click(object sender, RoutedEventArgs e)
         {
-            Tracker.Patterns.Insert(Tracker.currentPatternIndex + 1, new Pattern(rowCount: ProgramConstants.MaxRowCount, channels: defaultChannelCount));
+            Tracker.Patterns.Insert(
+                Tracker.currentPatternIndex + 1, 
+                new Pattern(
+                    rowCount: ProgramConstants.MaxRowCount,
+                    channels: ProgramConstants.DefaultChannelCount
+                )
+            );
             FrameVerticalScrollBar.Value += FrameVerticalScrollBar.SmallChange;
             InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, vm.BPM);
         }
@@ -486,7 +482,7 @@ namespace sfTracker
             if (Tracker.Patterns.Count == 1) { return; } // don't allow removal when only one pattern exists
             if (Tracker.currentPatternIndex == Tracker.Patterns.Count - 1) { FrameVerticalScrollBar.Value -= FrameVerticalScrollBar.SmallChange; }
             Tracker.Patterns.RemoveAt(Tracker.currentPatternIndex); // TODO: consider making it more clear that current pattern is being deleted
-            InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, defaultBPM);
+            InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, ProgramConstants.DefaultBPM);
         }
 
         private void NumberOnly(object sender, TextCompositionEventArgs e)
@@ -608,7 +604,173 @@ namespace sfTracker
             RowHighlight_Up_Button.IsEnabled = isEnabled;
             RowHighlight_Down_Button.IsEnabled = isEnabled;
 
+            CreateNew_Button.IsEnabled = isEnabled;
+            Save_Button.IsEnabled = isEnabled;
+            SaveAs_Button.IsEnabled = isEnabled;
+            Load_Button.IsEnabled = isEnabled;
+
             OpenSF2_Button.IsEnabled = isEnabled;
+        }
+
+        private void CreateNewButton_Click(object sender, RoutedEventArgs e)
+        {
+            bool confirmed = GetConfirmationDialog("Create New Project");
+            if (!confirmed) { return; }
+
+            vm.SetViewModelData(
+                ProgramConstants.DefaultBPM,
+                ProgramConstants.DefaultSpeed,
+                ProgramConstants.DefaultRowCount,
+                ProgramConstants.DefaultRowHighlight,
+                ""
+            );
+            Tracker.GlobalCurrentRow = 0;
+            //Tracker.ResetToFirstRow();
+
+            ProjectTitle = "";
+            vm.ResetColumns();
+            InitialiseTracker(
+                soundFont: ProgramConstants.DefaultSoundFont,
+                patterns: [
+                    new Pattern(rowCount: ProgramConstants.MaxRowCount, channels: ProgramConstants.DefaultChannelCount),
+                ],
+                BPM: ProgramConstants.DefaultBPM
+            );
+        }
+
+        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            System.Windows.Controls.Button button = (System.Windows.Controls.Button)sender;
+            string tag = button.Tag.ToString();
+            SaveProject(ProjectTitle, isNewProject: tag == "Save_As");
+        }
+        
+        private void LoadButton_Click(object sender, RoutedEventArgs e)
+        {
+            bool confirmed = GetConfirmationDialog("Load Project");
+            if (!confirmed) { return; }
+
+            string fileName = GetOpenFileDialog(title: "Select .sft file", filter: "sfTracker Files (*.sft)|*.sft");
+            if (fileName == "") { return; }
+
+            LoadProject(GetParsedFileName(fileName));
+        }
+
+        private void SaveProject(string filePath, bool isNewProject = false)
+        {
+            if (isNewProject || filePath == "")
+            {
+                string fileName = GetSaveFileDialog(title: "Save project", filter: "sfTracker Files (*.sft)|*.sft");
+                if (fileName == "") { return; }
+                filePath = GetParsedFileName(fileName);
+                ProjectTitle = filePath;
+                vm.WindowTitle = filePath;
+            }
+
+            // TODO: include channel count (if i'm making them generic)
+            List<Pattern> resizedPatterns = [];
+            foreach (var pattern in Engine.Tracker.Patterns)
+            {
+                Pattern resizedPattern = new Pattern(rowCount: vm.RowCount, channels: ProgramConstants.DefaultChannelCount);
+                for (int i = 0; i < vm.RowCount; i++)
+                    resizedPattern.Rows[i] = pattern.Rows[i];
+
+                resizedPatterns.Add(resizedPattern);
+            }
+
+            ProjectFile project = new()
+            {
+                ProjectName = filePath,
+                SoundFont = SelectedSoundFont.Text,
+                BPM = vm.BPM,
+                Speed = vm.Speed,
+                RowCount = vm.RowCount,
+                RowHighlight = vm.RowHighlight,
+                Patterns = resizedPatterns
+            };
+
+            JsonSerializerOptions jsonOptions = new()
+            {
+                WriteIndented = true
+            };
+
+            string json = JsonSerializer.Serialize(project, jsonOptions);
+            File.WriteAllText(filePath, json);
+        }
+
+        private void LoadProject(string filePath)
+        {
+            string json = File.ReadAllText(filePath);
+            ProjectFile project = JsonSerializer.Deserialize<ProjectFile>(json);
+
+            vm.SetViewModelData(project.BPM, project.Speed, project.RowCount, project.RowHighlight, project.ProjectName);
+
+            List<Pattern> resizedPatterns = [];
+
+            foreach (var pattern in project.Patterns)
+            {
+                Pattern filledPattern = new Pattern(rowCount: ProgramConstants.MaxRowCount, channels: ProgramConstants.DefaultChannelCount);
+                for (int i = 0; i < project.RowCount; i++)
+                    filledPattern.Rows[i] = pattern.Rows[i];
+
+                resizedPatterns.Add(filledPattern);
+            }
+
+            ProjectTitle = filePath;
+            vm.ResetColumns();
+            InitialiseTracker(project.SoundFont, resizedPatterns, project.BPM);
+            UpdateTrackerSettings();
+        }
+
+        private bool GetConfirmationDialog(string title)
+        {
+            ConfirmDialog confirmDialog = new ConfirmDialog
+            {
+                Owner = this,
+                Title = title
+            };
+
+            confirmDialog.ShowDialog();
+            if (!confirmDialog.Confirmed) { return false; }
+            return true;
+        }
+
+        private static string GetSaveFileDialog(string title, string filter)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Title = title,
+                Filter = filter,
+            };
+
+            DialogResult result = dialog.ShowDialog();
+
+            if (result == System.Windows.Forms.DialogResult.OK)
+                return dialog.FileName;
+
+            return "";
+        }
+
+        private static string GetParsedFileName(string fileName)
+        {
+            return fileName[(fileName.LastIndexOf('\\') + 1)..];
+        }
+
+        private static string GetOpenFileDialog(string title, string filter)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = title,
+                Filter = filter,
+                Multiselect = false
+            };
+
+            DialogResult result = dialog.ShowDialog();
+
+            if (result == System.Windows.Forms.DialogResult.OK)
+                return dialog.FileName;
+
+            return "";
         }
 
         //private void UpdatePatternsRowCount()

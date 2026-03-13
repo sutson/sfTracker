@@ -62,8 +62,16 @@ namespace sfTracker.GUI
                 Columns.Add(new TrackerColumn { Index = i, ColumnWidth = columnWidth });
         }
 
+        public void ResetColumns()
+        {
+            foreach (var column in Columns)
+            {
+                column.IsMuted = false;
+                column.IsSolo = false;
+            }
+        }
 
-        private int bpm = 120;
+        private int bpm = ProgramConstants.DefaultBPM;
         public int BPM
         {
             get => bpm;
@@ -78,7 +86,7 @@ namespace sfTracker.GUI
             }
         }
 
-        private int speed = 6;
+        private int speed = ProgramConstants.DefaultSpeed;
         public int Speed
         {
             get => speed;
@@ -93,7 +101,7 @@ namespace sfTracker.GUI
             }
         }
 
-        private int rowCount = 32;
+        private int rowCount = ProgramConstants.DefaultRowCount;
         public int RowCount
         {
             get => rowCount;
@@ -108,7 +116,7 @@ namespace sfTracker.GUI
             }
         }
 
-        private int rowHighlight = 4;
+        private int rowHighlight = ProgramConstants.DefaultRowHighlight;
         public int RowHighlight
         {
             get => rowHighlight;
@@ -123,9 +131,33 @@ namespace sfTracker.GUI
             }
         }
 
+        private string windowTitle = "sfTracker";
+        public string WindowTitle
+        {
+            get => windowTitle;
+            set
+            {
+                if (windowTitle != value)
+                {
+                    string displayName = value != "" ? $"{value} - " : value; 
+                    windowTitle = $"{displayName}sfTracker";
+                    OnPropertyChanged(nameof(WindowTitle));
+                }
+            }
+        }
+
         private static int GetClampedValue(int value, int minValue, int maxValue)
         {
             return Math.Clamp(value, minValue, maxValue);
+        }
+
+        public void SetViewModelData(int bpm, int speed, int rowCount, int rowHighlight, string title)
+        {
+            BPM = bpm;
+            Speed = speed;
+            RowCount = rowCount;
+            RowHighlight = rowHighlight;
+            WindowTitle = title;
         }
     }
 }

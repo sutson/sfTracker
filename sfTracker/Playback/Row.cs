@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace sfTracker.Playback
@@ -12,6 +14,12 @@ namespace sfTracker.Playback
     public class Row
     {
         public Cell[] Cells { get; set; }
+
+        [JsonConstructor] // need this for saving/loading files, Json requires the constructor to match the fields exactly
+        public Row(Cell[] cells)
+        {
+            Cells = cells;
+        }
 
         public Row(int channels) 
         {
