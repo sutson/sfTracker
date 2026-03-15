@@ -13,7 +13,6 @@ namespace sfTracker.Tracker
         public int Bank { get; set; }
         public int Instrument { get; set; }
         public string DisplayID { get; set; }
-
         public string Display => $"{DisplayID}: {Name}";
     }
 }

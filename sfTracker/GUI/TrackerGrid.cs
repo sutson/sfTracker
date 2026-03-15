@@ -1,4 +1,5 @@
-﻿using sfTracker.Audio;
+﻿using sfTracker.Actions;
+using sfTracker.Audio;
 using sfTracker.Common;
 using sfTracker.Controls;
 using sfTracker.Playback;
@@ -75,6 +76,8 @@ public class TrackerGrid : FrameworkElement
         DigitWidth * 3 +          // effects cell (1 char + 2 digits)
         ChannelInnerPadding * 4;  // 4 paddings (between notes/instrs, instrs/volumes, volumes/effects, 1/2 either side);
     public double RowWidth => ProgramConstants.DefaultChannelCount * ColumnWidth;
+
+    public UndoRedoManager undoRedoManager = new UndoRedoManager();
 
     public TrackerGrid()
     {
@@ -457,165 +460,36 @@ public class TrackerGrid : FrameworkElement
         return rowStr.PadLeft(3, '0');
     }
 
-    private void PlaceNote(MidiNoteValueMap note)
-    {
-        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = (int)note;
-        SetNote(
-            pattern: CurrentPatternIndex,
-            row: PatternCurrentRow,
-            channel: CurrentChannel,
-            note: (int)note,
-            bank: SelectedBank,
-            instrument: SelectedInstrument == -1 ? 0 : SelectedInstrument,
-            instrumentID: SelectedInstrumentID == -1 ? 0 : SelectedInstrumentID,
-            volume: ProgramConstants.MaxDisplayVolume,
-            panning: ProgramConstants.DefaultPanEffect
-        );
-        GlobalCurrentRow++;
-    }
-    private void PlaceStopNote()
-    {
-        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = ProgramConstants.StopNote;
-        SetNote(
-            pattern: CurrentPatternIndex,
-            row: PatternCurrentRow,
-            channel: CurrentChannel,
-            note: ProgramConstants.StopNote,
-            bank: -1,
-            instrument: -1,
-            instrumentID: -1,
-            volume: -1,
-            panning: ProgramConstants.DefaultPanEffect
-        );
-        GlobalCurrentRow++;
-    }
-    private void HandlePitchChange(PitchChange change)
-    {
-        // do nothing if note is empty or stop note
-        if (Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) { return; }
-
-        // update note pitch based on change input (either semitone or octave change)
-        // ensure it is clamped within the region of valid MIDI notes
-        int updatedValue = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note + (int)change;
-        if (updatedValue < ProgramConstants.MinMidiNoteValue || updatedValue > ProgramConstants.MaxMidiNoteValue) { return; }
-        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = updatedValue;
-    }
-
-    private void HandleEffectTypeChange(PanEffect effect)
-    {
-        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
-        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning = effect;
-    }
-
-    private void ChangeNoteInstrument(int digitIndex, int newValue)
-    {
-        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; };
-
-        int instrumentID = Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID;
-        int updatedInstrumentID = UpdateNumberValue(
-            instrumentID == -1 ? "000" : instrumentID.ToString().PadLeft(3, '0'),
-            digitIndex,
-            newValue
-        );
-
-        SoundFontPreset preset = GetSoundFontPresetFromID(updatedInstrumentID);
-        if (preset == null) { return; } // TODO: update to make instrument colour red if no preset found
-        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument = preset.Instrument;
-    }
-
-    private SoundFontPreset GetSoundFontPresetFromID(int id)
-    {
-        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID = id;
-        SoundFontPreset preset = PresetList.FirstOrDefault(x => x.ID == id);
-        return preset;
-    }
-
-    private void ChangeNoteVolume(int digitIndex, int newValue)
-    {
-        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; };
-
-        int volume = Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity;
-        int updatedVolume = UpdateNumberValue(
-            volume == -1 ? "00" : volume.ToString().PadLeft(2, '0'),
-            digitIndex,
-            newValue
-        );
-        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
-        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity = updatedVolume;
-    }
-
-    private void ChangeNotePanning(int digitIndex, int newValue)
-    {
-        int panning = Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Value;
-        int updatedPanning = UpdateNumberValue(
-            panning == 0 ? "00" : panning.ToString().PadLeft(2, '0'),
-            digitIndex,
-            newValue
-        );
-        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
-        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Value = updatedPanning;
-    }
-
-    private int UpdateNumberValue(string idString, int index, int newDigit)
-    {
-        var chars = idString.ToCharArray();
-        chars[index] = (char)('0' + newDigit);
-        return int.Parse(new string(chars));
-    }
-
     private void HandleDeleteField(bool IsBackspace = false)
     {
         switch (CurrentField)
         {
             case TrackerField.Note:
                 // remove all values in row
-                SetNote(
-                    pattern: CurrentPatternIndex,
-                    row: PatternCurrentRow,
-                    channel: CurrentChannel,
+                UpdateNote(
                     note: -1,
                     bank: -1,
                     instrument: -1,
                     instrumentID: -1,
-                    volume: -1,
-                    panning: new PanEffect(direction: null, value: -1)
+                    velocity: -1,
+                    panning: ProgramConstants.DefaultPanEffect
                 );
                 break;
+            
             case TrackerField.InstrumentFirstDigit:
             case TrackerField.InstrumentSecondDigit:
             case TrackerField.InstrumentThirdDigit:
                 return; // don't allow deletion of instrument (defaults to 0 anyway)
+            
             case TrackerField.VolumeFirstDigit:
             case TrackerField.VolumeSecondDigit:
-                // remove volume values only
-                SetNote(
-                    pattern: CurrentPatternIndex,
-                    row: PatternCurrentRow,
-                    channel: CurrentChannel,
-                    note: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
-                    bank: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
-                    instrument: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
-                    instrumentID: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
-                    volume: -1,
-                    panning: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning
-                );
+                UpdateVolume(velocity: -1); // remove volume values only
                 break;
 
             case TrackerField.EffectType:
             case TrackerField.EffectFirstDigit:
             case TrackerField.EffectSecondDigit:
-                // remove effect type and digits
-                SetNote(
-                    pattern: CurrentPatternIndex,
-                    row: PatternCurrentRow,
-                    channel: CurrentChannel,
-                    note: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
-                    bank: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
-                    instrument: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
-                    instrumentID: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
-                    volume: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity,
-                    panning: ProgramConstants.DefaultPanEffect
-                );
+                UpdatePanning(ProgramConstants.DefaultPanEffect); // remove effect type and digits
                 break;
         }
 
@@ -625,33 +499,105 @@ public class TrackerGrid : FrameworkElement
             GlobalCurrentRow++;
     }
 
-    private void SetNote(int pattern, int row, int channel, int note, int bank, int instrument, int instrumentID, int volume, PanEffect panning)
-    {
-        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Channel = channel;
-        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Note = note;
-        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Bank = bank;
-        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Instrument = instrument;
-        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].InstrumentID = instrumentID;
-        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Velocity = volume;
-        Engine.Tracker.Patterns[pattern].Rows[row].Cells[channel].Panning = panning;
-    }
-
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (Patterns == null || Patterns.Count == 0) return;
+
+        switch (e.Key)
+        {
+            case Key.Up:
+                GlobalCurrentRow--;
+                break;
+
+            case Key.Down:
+                GlobalCurrentRow++;
+                break;
+
+            case Key.Left:
+                GlobalCurrentColumn--;
+                break;
+
+            case Key.Right:
+                GlobalCurrentColumn++;
+                break;
+
+            case Key.Delete:
+                HandleDeleteField();
+                break;
+
+            case Key.Oem3: // '@ key
+                HandlePitchChange(PitchChange.DecreaseSemitone);
+                break;
+
+            case Key.Oem7: // #~ key
+                HandlePitchChange(PitchChange.IncreaseSemitone);
+                break;
+
+            case Key.Oem4: // [{ key
+                HandlePitchChange(PitchChange.DecreaseOctave);
+                break;
+
+            case Key.Oem6: // ]} key
+                HandlePitchChange(PitchChange.IncreaseOctave);
+                break;
+
+            case Key.Back:
+                HandleDeleteField(IsBackspace: true);
+                break;
+
+            case Key.Enter:
+                StartPlayback();
+                break;
+
+            case Key.Z:
+                if (Keyboard.Modifiers == ModifierKeys.Control)
+                {
+                    undoRedoManager.Undo();
+                    return;
+                }
+                break;
+
+            case Key.Y:
+                if (Keyboard.Modifiers == ModifierKeys.Control)
+                {
+                    undoRedoManager.Redo();
+                    return;
+                }
+                break;
+        }
 
         switch (CurrentField)
         {
             case TrackerField.Note:
                 if (GetIntFromKey(e.Key) == (int)Keybinds.StopNote)
                 {
-                    PlaceStopNote();
+                    UpdateNote(
+                        note: ProgramConstants.StopNote,
+                        bank: -1,
+                        instrument: -1,
+                        instrumentID: -1,
+                        velocity: -1,
+                        panning: ProgramConstants.DefaultPanEffect
+                    );
+
+                    GlobalCurrentRow++;
                     break;
                 }
 
                 MidiNoteValueMap? note = GetMidiNote(e.Key);
                 if (note != null)
-                    PlaceNote(note.Value);
+                {
+                    UpdateNote(
+                        note: (int)note.Value,
+                        bank: SelectedBank,
+                        instrument: SelectedInstrument == -1 ? 0 : SelectedInstrument,
+                        instrumentID: SelectedInstrumentID == -1 ? 0 : SelectedInstrumentID,
+                        velocity: ProgramConstants.MaxDisplayVolume,
+                        panning: ProgramConstants.DefaultPanEffect
+                    );
+
+                    GlobalCurrentRow++;
+                }
                 break;
 
             case TrackerField.InstrumentFirstDigit:
@@ -686,10 +632,7 @@ public class TrackerGrid : FrameworkElement
                 {
                     int? value = GetIntFromKey(e.Key);
                     if (value != null)
-                    {
                         ChangeNoteVolume(digitIndex: 0, newValue: value.Value);
-                        GlobalCurrentRow++;
-                    }
                 }
                 break;
 
@@ -698,10 +641,7 @@ public class TrackerGrid : FrameworkElement
                 {
                     int? value = GetIntFromKey(e.Key);
                     if (value != null)
-                    {
                         ChangeNoteVolume(digitIndex: 1, newValue: value.Value);
-                        GlobalCurrentRow++;
-                    }
                 }
                 break;
             
@@ -719,10 +659,7 @@ public class TrackerGrid : FrameworkElement
                 {
                     int? value = GetIntFromKey(e.Key);
                     if (value != null && value * 10 <= ProgramConstants.MaxDisplayPanning) // do not allow changes over max panning display value
-                    {
                         ChangeNotePanning(digitIndex: 0, newValue: value.Value);
-                        GlobalCurrentRow++;
-                    }
                 }
                 break;
 
@@ -731,58 +668,8 @@ public class TrackerGrid : FrameworkElement
                 {
                     int? value = GetIntFromKey(e.Key);
                     if (value != null)
-                    {
                         ChangeNotePanning(digitIndex: 1, newValue: value.Value);
-                        GlobalCurrentRow++;
-                    }
                 }
-                break;
-        }
-
-        switch (e.Key)
-        {
-            case Key.Up:
-                GlobalCurrentRow--;
-                break;
-
-            case Key.Down:
-                GlobalCurrentRow++;
-                break;
-
-            case Key.Left:
-                GlobalCurrentColumn--;
-                break;
-
-            case Key.Right:
-                GlobalCurrentColumn++;
-                break;
-
-            case Key.Delete:
-                HandleDeleteField();
-                break;
-
-            case Key.Oem3: // '@ key
-                HandlePitchChange(PitchChange.DecreaseSemitone);
-                break;
-            
-            case Key.Oem7: // '@ key
-                HandlePitchChange(PitchChange.IncreaseSemitone);
-                break;
-
-            case Key.Oem4: // [{ key
-                HandlePitchChange(PitchChange.DecreaseOctave);
-                break;
-            
-            case Key.Oem6: // ]} key
-                HandlePitchChange(PitchChange.IncreaseOctave);
-                break;
-
-            case Key.Back:
-                HandleDeleteField(IsBackspace: true);
-                break;
-
-            case Key.Enter:
-                StartPlayback();
                 break;
         }
 
@@ -791,9 +678,207 @@ public class TrackerGrid : FrameworkElement
         e.Handled = true;
     }
 
+    private void UpdateNote(int note, int bank, int instrument, int instrumentID, int velocity, PanEffect panning)
+    {
+        undoRedoManager.Execute
+        (
+            new UpdateCellAction(
+                currentPattern: CurrentPatternIndex,
+                row: PatternCurrentRow,
+                channel: CurrentChannel,
+                patterns: Patterns,
+                newCell: new Cell
+                {
+                    Channel = CurrentChannel,
+                    Note = note,
+                    Bank = bank,
+                    Instrument = instrument,
+                    InstrumentID = instrumentID,
+                    Velocity = velocity,
+                    Panning = panning
+                }
+            )
+        );
+    }
+
+    private void TransposeNote(int note)
+    {
+        undoRedoManager.Execute
+        (
+            new UpdateCellAction(
+                currentPattern: CurrentPatternIndex,
+                row: PatternCurrentRow,
+                channel: CurrentChannel,
+                patterns: Patterns,
+                newCell: new Cell
+                {
+                    Channel = CurrentChannel,
+                    Note = note,
+                    Bank = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
+                    Instrument = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
+                    InstrumentID = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
+                    Velocity = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity,
+                    Panning = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning
+                }
+            )
+        );
+    }
+
+    private void UpdateInstrument(int instrument, int instrumentID)
+    {
+        undoRedoManager.Execute
+        (
+            new UpdateCellAction(
+                currentPattern: CurrentPatternIndex,
+                row: PatternCurrentRow,
+                channel: CurrentChannel,
+                patterns: Patterns,
+                newCell: new Cell
+                {
+                    Channel = CurrentChannel,
+                    Note = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
+                    Bank = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
+                    Instrument = instrument,
+                    InstrumentID = instrumentID,
+                    Velocity = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity,
+                    Panning = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning
+                }
+            )
+        );
+    }
+
+    private void UpdateVolume(int velocity)
+    {
+        undoRedoManager.Execute
+        (
+            new UpdateCellAction(
+                currentPattern: CurrentPatternIndex,
+                row: PatternCurrentRow,
+                channel: CurrentChannel,
+                patterns: Patterns,
+                newCell: new Cell
+                {
+                    Channel = CurrentChannel,
+                    Note = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
+                    Bank = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
+                    Instrument = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
+                    InstrumentID = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
+                    Velocity = velocity,
+                    Panning = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning
+                }
+            )
+        );
+    }
+
+    private void UpdatePanning(PanEffect panning)
+    {
+        undoRedoManager.Execute
+        (
+            new UpdateCellAction(
+                currentPattern: CurrentPatternIndex,
+                row: PatternCurrentRow,
+                channel: CurrentChannel,
+                patterns: Patterns,
+                newCell: new Cell
+                {
+                    Channel = CurrentChannel,
+                    Note = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
+                    Bank = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
+                    Instrument = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
+                    InstrumentID = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
+                    Velocity = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity,
+                    Panning = panning
+                }
+            )
+        );
+    }
+
     private static bool IsKeyDigit(Key key)
     {
         return (key >= Key.D0 && key <= Key.D9) || (key >= Key.NumPad0 && key <= Key.NumPad9); // numpad digits
+    }
+
+    private void HandlePitchChange(PitchChange change)
+    {
+        // do nothing if note is empty or stop note
+        if (Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) { return; }
+
+        // update note pitch based on change input (either semitone or octave change)
+        // ensure it is clamped within the region of valid MIDI notes
+        int updatedValue = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note + (int)change;
+        if (updatedValue < ProgramConstants.MinMidiNoteValue || updatedValue > ProgramConstants.MaxMidiNoteValue) { return; }
+        TransposeNote(updatedValue);
+    }
+
+    private void HandleEffectTypeChange(PanEffect effect)
+    {
+        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == -1) { return; }
+
+        UpdatePanning(effect);
+        GlobalCurrentRow++;
+    }
+
+    private void ChangeNoteInstrument(int digitIndex, int newValue)
+    {
+        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; }
+
+        int instrumentID = Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID;
+        int updatedInstrumentID = UpdateNumberValue(
+            instrumentID == -1 ? "000" : instrumentID.ToString().PadLeft(3, '0'),
+            digitIndex,
+            newValue
+        );
+
+        SoundFontPreset preset = GetSoundFontPresetFromID(updatedInstrumentID);
+        if (preset == null) { return; } // TODO: update to make instrument colour red if no preset found
+        UpdateInstrument(instrument: preset.Instrument, instrumentID: preset.ID);
+    }
+
+    private SoundFontPreset GetSoundFontPresetFromID(int id)
+    {
+        return PresetList.FirstOrDefault(x => x.ID == id); ;
+    }
+
+    private void ChangeNoteVolume(int digitIndex, int newValue)
+    {
+        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; }
+
+        int volume = Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity;
+        int updatedVolume = UpdateNumberValue(
+            volume == -1 ? "00" : volume.ToString().PadLeft(2, '0'),
+            digitIndex,
+            newValue
+        );
+
+        UpdateVolume(updatedVolume);
+        GlobalCurrentRow++;
+    }
+
+    private void ChangeNotePanning(int digitIndex, int newValue)
+    {
+        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Direction == null) { return; }
+
+        int panningValue = Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Value;
+        int updatedPanningValue = UpdateNumberValue(
+            panningValue == 0 ? "00" : panningValue.ToString().PadLeft(2, '0'),
+            digitIndex,
+            newValue
+        );
+
+        PanEffect updatedPanning = new PanEffect(
+            Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Direction,
+            updatedPanningValue
+        );
+
+        UpdatePanning(updatedPanning);
+        GlobalCurrentRow++;
+    }
+
+    private static int UpdateNumberValue(string idString, int index, int newDigit)
+    {
+        var chars = idString.ToCharArray();
+        chars[index] = (char)('0' + newDigit);
+        return int.Parse(new string(chars));
     }
 
     public void SetCurrentRow(int row)
@@ -901,11 +986,6 @@ public class TrackerGrid : FrameworkElement
         }
     }
 
-    public int GetRowsInPreviousPattern(int index)
-    {
-        if (index == 0) return 0;
-        return Patterns[index-1].Rows.Length;
-    }
     private int WrapRow(int row)
     {
         if (row < 0 || row >= TotalRowCount)
