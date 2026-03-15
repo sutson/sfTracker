@@ -15,24 +15,33 @@ using System.Windows.Media;
 namespace sfTracker.GUI;
 public class TrackerGrid : FrameworkElement
 {
-    private int RowOffset = 0;
-    private int SelectedBank = -1;
-    private int SelectedInstrument = -1;
-    private int SelectedInstrumentID = -1;
     private readonly int MaxRenderHeight = 510;
-    public readonly int TrackerMarginTop = -200;
+    private readonly int TrackerMarginTop = -200;
+    public readonly double RowHeight = 15;
+    public readonly int LeadInRows = 8; // number of "invisible rows" at the top of the tracker field
+    public int VisibleRowCount => (int)(ActualHeight / RowHeight) + 1; // TODO: consider making this just 1 so scrolling keeps now playing bar in the same place
+    public SynthEngine Engine { get; set; } // instance of synth engine for updating patterns
 
+    // tracker data
+    private int RowOffset = 0; // row offset value required for scrolling into different patterns
     public int CurrentRow = 0;
+    public double CurrentRowPosition = 0; // used in rendering context, technically different from CurrentRow
+    public int PatternCurrentRow = 0; // current row in a current pattern
+    public int CurrentPatternIndex = 0;
     public int CurrentColumn = 0;
     public int CurrentChannel = 0;
     public int ChannelCount = 0;
-    public int PatternCurrentRow = 0;
-    public int currentPatternIndex = 0; // index in Patterns[]
     public int FirstVisibleRow = 0;
     public int TotalRowCount = 0;
-    public bool IsPlaying = false;
-    public int RowHighlight = 4;
     public int RowsPerPattern = 0;
+    public int RowHighlight = 0;
+    public List<Pattern> Patterns = [];
+
+    // instrument data
+    private int SelectedBank = -1;
+    private int SelectedInstrument = -1;
+    private int SelectedInstrumentID = -1;
+    public ObservableCollection<SoundFontPreset> PresetList = []; // preset list for SoundFont panel
 
     // variables for channel buttons (mute/solo)
     public ObservableCollection<TrackerColumn> ChannelStatuses;
@@ -51,73 +60,27 @@ public class TrackerGrid : FrameworkElement
     public int FirstVisibleFrame = 0;
     public int LastVisibleFrame = 6;
 
-    public ObservableCollection<SoundFontPreset> PresetList = [];
+    // field data
+    public int FieldsPerChannel = Enum.GetValues(typeof(TrackerField)).Length; // how many selectable fields exist in a single channel (column)
     public TrackerField CurrentField = TrackerField.Note;
-
-    // how many selectable fields exist in a single channel (column)
-    public int FieldsPerChannel = Enum.GetValues(typeof(TrackerField)).Length; 
-
-    public double RowHeight = 15;
-    public readonly int LeadInRows = 8; // number of rows before the viewport starts scrolling
-
-    public double DigitWidth;
-    public double NoteWidth;
-    public double ChannelInnerPadding;
-    public double ColumnWidth;
-    public double RowWidth;
-
-    public SynthEngine Engine { get; set; }
-    public int VisibleRowCount => (int)(ActualHeight / RowHeight) + 1;
+    
+    // define widths for each column
+    public double DigitWidth = 7.8;
+    public double ChannelInnerPadding = 10;
+    public double NoteWidth => DigitWidth * 3;
+    public double ColumnWidth =>
+        NoteWidth +               // note cell
+        DigitWidth * 3 +          // instrument cell (3 digits)
+        DigitWidth * 2 +          // volume cell (2 digits)
+        DigitWidth * 3 +          // effects cell (1 char + 2 digits)
+        ChannelInnerPadding * 4;  // 4 paddings (between notes/instrs, instrs/volumes, volumes/effects, 1/2 either side);
+    public double RowWidth => ProgramConstants.DefaultChannelCount * ColumnWidth;
 
     public TrackerGrid()
     {
-        DigitWidth = 7.8;
-        NoteWidth = DigitWidth * 3 + ChannelInnerPadding;
-        ChannelInnerPadding = 10;
-        ColumnWidth =
-            NoteWidth +                 // note cell
-            DigitWidth * 3 +            // instrument cell (3 digits)
-            DigitWidth * 2 +            // volume cell (2 digits)
-            DigitWidth * 3 +            // effects cell (1 char + 2 digits)
-            ChannelInnerPadding * 4;    // 4 paddings (between notes/instrs, instrs/volumes, volumes/effects, 1/2 either side)
-
         Brushes.Init();
         Focusable = true; // set focusable so key presses can be used to navigate/place notes
         IsHitTestVisible = false; // prevent filled shapes messing with scrolling
-    }
-
-    // https://stackoverflow.com/questions/47678298/wpf-dependency-property-on-change-update-control
-
-    public static readonly DependencyProperty PatternProperty = DependencyProperty.Register(
-        nameof(Patterns),
-        typeof(IList<Pattern>),
-        typeof(TrackerGrid),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender)
-    );
-
-    public IList<Pattern> Patterns
-    {
-        get => (IList<Pattern>)GetValue(PatternProperty);
-        set => SetValue(PatternProperty, value);
-    }
-
-    public static readonly DependencyProperty CurrentRowPositionProperty = DependencyProperty.Register(
-        nameof(CurrentRowPosition),
-        typeof(double),
-        typeof(TrackerGrid),
-        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender)
-    );
-
-    public double CurrentRowPosition
-    {
-        get => (double)GetValue(CurrentRowPositionProperty);
-        set => SetValue(CurrentRowPositionProperty, value);
-    }
-
-    public void SetCurrentRow(int row)
-    {
-        CurrentRowPosition = row;
-        InvalidateVisual();
     }
 
     protected override void OnRender(DrawingContext context)
@@ -139,7 +102,7 @@ public class TrackerGrid : FrameworkElement
 
         for (int i = 0; i < Patterns.Count; i++)
         {
-            var brush = (i == currentPatternIndex) ? Brushes.ActivePatternBrush : Brushes.InactivePatternBrush;
+            var brush = (i == CurrentPatternIndex) ? Brushes.ActivePatternBrush : Brushes.InactivePatternBrush;
 
             for (int row = 0; row < RowsPerPattern; row++)
             {
@@ -151,7 +114,7 @@ public class TrackerGrid : FrameworkElement
                     context.DrawText(
                         RenderText(
                             GetRowString(absoluteRow),
-                            (i == currentPatternIndex)
+                            (i == CurrentPatternIndex)
                                 ? (row % RowHighlight == 0 ? Brushes.ActivePatternBrush : Brushes.LowOpacityTextBrush)
                                 : (row % RowHighlight == 0 ? Brushes.InactiveTextBrush : Brushes.LowOpacityInactiveTextBrush)
                         ),
@@ -168,11 +131,11 @@ public class TrackerGrid : FrameworkElement
                     ColumnDefinitions cols = new ColumnDefinitions(startChannelX, NoteWidth, DigitWidth, ChannelInnerPadding);
                     var cell = Patterns[i].Rows[row].Cells[channel];
 
-                    // highlight every fourth row
+                    // highlight every n-th row based on RowHighlight
                     if (row % RowHighlight == 0)
                     {
                         context.DrawRectangle(
-                            i == currentPatternIndex
+                            i == CurrentPatternIndex
                                 ? Brushes.FourthRowHighlight
                                 : Brushes.InactiveFourthRowHighlight,
                             null,
@@ -182,34 +145,34 @@ public class TrackerGrid : FrameworkElement
 
                     context.DrawText(
                         RenderText(GetNoteTextToRender(cell.Note), brush), // TODO: make the --- a less bright, while keeping normal text same
-                        new Point(cols.noteX, y)
+                        new Point(cols.NoteX, y)
                     );
 
                     context.DrawText(
                         RenderText(GetInstrumentTextToRender(cell.InstrumentID), brush),
-                        new Point(cols.instrFirstX, y)
+                        new Point(cols.InstrFirstX, y)
                     );
 
                     context.DrawText(
                         RenderText(GetVolumeTextToRender(cell.Velocity), brush),
-                        new Point(cols.volFirstX, y)
+                        new Point(cols.VolFirstX, y)
                     );
 
                     context.DrawText(
                         RenderText(GetEffectTypeTextToRender(cell.Panning), brush),
-                        new Point(cols.effectTypeX, y)
+                        new Point(cols.EffectTypeX, y)
                     );
 
                     context.DrawText(
                         RenderText(GetEffectTextToRender(cell.Panning.Value), brush),
-                        new Point(cols.effectFirstX, y)
+                        new Point(cols.EffectFirstX, y)
                     );
 
                     // highlight current cell
                     if (absoluteRow == GlobalCurrentRow && channel == CurrentChannel)
                     {
-                        HighlightCurrentCell(context, startChannelX, cols.instrFirstX, cols.instrSecondX, cols.instrThirdX,
-                            cols.volFirstX, cols.volSecondX, cols.effectTypeX, cols.effectFirstX, cols.effectSecondX, y
+                        HighlightCurrentCell(context, startChannelX, cols.InstrFirstX, cols.InstrSecondX, cols.InstrThirdX,
+                            cols.VolFirstX, cols.VolSecondX, cols.EffectTypeX, cols.EffectFirstX, cols.EffectSecondX, y
                         );
                     }
                 }
@@ -338,8 +301,8 @@ public class TrackerGrid : FrameworkElement
 
         double channelTextStartX = headerStartX + padding / 2;
 
-        // draw "Channel X" text
-        FormattedText channelText = RenderText($"Channel {channel + 1}", Brushes.Black, 13, FontWeights.DemiBold);
+        // draw "Channel X" text (note ToString("X") converts numbers to hexadecimal so each is the same width)
+        FormattedText channelText = RenderText($"Channel {(channel + 1).ToString("X")}", Brushes.Black, 13, FontWeights.DemiBold);
         context.DrawText(
             channelText,
             new Point(
@@ -402,7 +365,7 @@ public class TrackerGrid : FrameworkElement
     private void DrawFrameSelectRows(DrawingContext context, int pattern)
     {
         context.DrawRectangle(
-            pattern == currentPatternIndex ? Brushes.CurrentFrameHighlight : null,
+            pattern == CurrentPatternIndex ? Brushes.CurrentFrameHighlight : null,
             null,
             new Rect(
                 FrameSelectStartX,
@@ -416,7 +379,7 @@ public class TrackerGrid : FrameworkElement
             RenderText(
                 $"Pattern {pattern + 1}",
                 Brushes.OffWhite,
-                weight: pattern == currentPatternIndex ? FontWeights.Bold : FontWeights.Normal,
+                weight: pattern == CurrentPatternIndex ? FontWeights.Bold : FontWeights.Normal,
                 font: "Segou UI"
             ),
             new Point(
@@ -478,7 +441,7 @@ public class TrackerGrid : FrameworkElement
     private string GetRowString(int absoluteRow)
     {
         int rowText = absoluteRow;
-        if (currentPatternIndex > 0)
+        if (CurrentPatternIndex > 0)
         {
             if (rowText >= RowsPerPattern)
                 rowText -= RowsPerPattern;
@@ -496,9 +459,9 @@ public class TrackerGrid : FrameworkElement
 
     private void PlaceNote(MidiNoteValueMap note)
     {
-        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = (int)note;
+        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = (int)note;
         SetNote(
-            pattern: currentPatternIndex,
+            pattern: CurrentPatternIndex,
             row: PatternCurrentRow,
             channel: CurrentChannel,
             note: (int)note,
@@ -512,9 +475,9 @@ public class TrackerGrid : FrameworkElement
     }
     private void PlaceStopNote()
     {
-        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = ProgramConstants.StopNote;
+        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = ProgramConstants.StopNote;
         SetNote(
-            pattern: currentPatternIndex,
+            pattern: CurrentPatternIndex,
             row: PatternCurrentRow,
             channel: CurrentChannel,
             note: ProgramConstants.StopNote,
@@ -529,26 +492,26 @@ public class TrackerGrid : FrameworkElement
     private void HandlePitchChange(PitchChange change)
     {
         // do nothing if note is empty or stop note
-        if (Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) { return; }
+        if (Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) { return; }
 
         // update note pitch based on change input (either semitone or octave change)
         // ensure it is clamped within the region of valid MIDI notes
-        int updatedValue = Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note + (int)change;
+        int updatedValue = Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note + (int)change;
         if (updatedValue < ProgramConstants.MinMidiNoteValue || updatedValue > ProgramConstants.MaxMidiNoteValue) { return; }
-        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = updatedValue;
+        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note = updatedValue;
     }
 
     private void HandleEffectTypeChange(PanEffect effect)
     {
-        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
-        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning = effect;
+        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
+        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning = effect;
     }
 
     private void ChangeNoteInstrument(int digitIndex, int newValue)
     {
-        if (Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; };
+        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; };
 
-        int instrumentID = Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID;
+        int instrumentID = Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID;
         int updatedInstrumentID = UpdateNumberValue(
             instrumentID == -1 ? "000" : instrumentID.ToString().PadLeft(3, '0'),
             digitIndex,
@@ -557,40 +520,40 @@ public class TrackerGrid : FrameworkElement
 
         SoundFontPreset preset = GetSoundFontPresetFromID(updatedInstrumentID);
         if (preset == null) { return; } // TODO: update to make instrument colour red if no preset found
-        Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument = preset.Instrument;
+        Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument = preset.Instrument;
     }
 
     private SoundFontPreset GetSoundFontPresetFromID(int id)
     {
-        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID = id;
+        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID = id;
         SoundFontPreset preset = PresetList.FirstOrDefault(x => x.ID == id);
         return preset;
     }
 
     private void ChangeNoteVolume(int digitIndex, int newValue)
     {
-        if (Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; };
+        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note == ProgramConstants.StopNote) { return; };
 
-        int volume = Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity;
+        int volume = Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity;
         int updatedVolume = UpdateNumberValue(
             volume == -1 ? "00" : volume.ToString().PadLeft(2, '0'),
             digitIndex,
             newValue
         );
-        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
-        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity = updatedVolume;
+        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
+        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity = updatedVolume;
     }
 
     private void ChangeNotePanning(int digitIndex, int newValue)
     {
-        int panning = Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Value;
+        int panning = Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Value;
         int updatedPanning = UpdateNumberValue(
             panning == 0 ? "00" : panning.ToString().PadLeft(2, '0'),
             digitIndex,
             newValue
         );
-        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
-        Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Value = updatedPanning;
+        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Channel = CurrentChannel;
+        Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning.Value = updatedPanning;
     }
 
     private int UpdateNumberValue(string idString, int index, int newDigit)
@@ -607,7 +570,7 @@ public class TrackerGrid : FrameworkElement
             case TrackerField.Note:
                 // remove all values in row
                 SetNote(
-                    pattern: currentPatternIndex,
+                    pattern: CurrentPatternIndex,
                     row: PatternCurrentRow,
                     channel: CurrentChannel,
                     note: -1,
@@ -626,15 +589,15 @@ public class TrackerGrid : FrameworkElement
             case TrackerField.VolumeSecondDigit:
                 // remove volume values only
                 SetNote(
-                    pattern: currentPatternIndex,
+                    pattern: CurrentPatternIndex,
                     row: PatternCurrentRow,
                     channel: CurrentChannel,
-                    note: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
-                    bank: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
-                    instrument: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
-                    instrumentID: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
+                    note: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
+                    bank: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
+                    instrument: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
+                    instrumentID: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
                     volume: -1,
-                    panning: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning
+                    panning: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Panning
                 );
                 break;
 
@@ -643,14 +606,14 @@ public class TrackerGrid : FrameworkElement
             case TrackerField.EffectSecondDigit:
                 // remove effect type and digits
                 SetNote(
-                    pattern: currentPatternIndex,
+                    pattern: CurrentPatternIndex,
                     row: PatternCurrentRow,
                     channel: CurrentChannel,
-                    note: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
-                    bank: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
-                    instrument: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
-                    instrumentID: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
-                    volume: Engine.Tracker.Patterns[currentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity,
+                    note: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note,
+                    bank: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Bank,
+                    instrument: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Instrument,
+                    instrumentID: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].InstrumentID,
+                    volume: Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Velocity,
                     panning: ProgramConstants.DefaultPanEffect
                 );
                 break;
@@ -833,6 +796,12 @@ public class TrackerGrid : FrameworkElement
         return (key >= Key.D0 && key <= Key.D9) || (key >= Key.NumPad0 && key <= Key.NumPad9); // numpad digits
     }
 
+    public void SetCurrentRow(int row)
+    {
+        CurrentRowPosition = row;
+        InvalidateVisual();
+    }
+
     // === EVENT HANDLING === //
 
     public event Action<int> PlaybackStarted;
@@ -849,8 +818,7 @@ public class TrackerGrid : FrameworkElement
 
     public void StartPlayback()
     {
-        PlaybackStarted?.Invoke(currentPatternIndex);
-        IsPlaying = !IsPlaying;
+        PlaybackStarted?.Invoke(CurrentPatternIndex);
     }
 
     public void SelectInstrument(int value, int id)
@@ -949,15 +917,15 @@ public class TrackerGrid : FrameworkElement
         else if (row - RowOffset >= RowsPerPattern)
         {
             RowOffset += RowsPerPattern;
-            currentPatternIndex++;
-            PatternChanged?.Invoke(currentPatternIndex);
+            CurrentPatternIndex++;
+            PatternChanged?.Invoke(CurrentPatternIndex);
         }
 
         else if (row < RowOffset)
         {
             RowOffset -= RowsPerPattern;
-            currentPatternIndex--;
-            PatternChanged?.Invoke(currentPatternIndex);
+            CurrentPatternIndex--;
+            PatternChanged?.Invoke(CurrentPatternIndex);
         }
 
         PatternCurrentRow = row - RowOffset;
@@ -968,7 +936,7 @@ public class TrackerGrid : FrameworkElement
     public void ResetToFirstRow()
     {
         RowOffset = 0;
-        currentPatternIndex = 0;
+        CurrentPatternIndex = 0;
         PatternChanged?.Invoke(0);
     }
 
@@ -983,9 +951,7 @@ public class TrackerGrid : FrameworkElement
         }
 
         if (column > FieldsPerChannel * ChannelCount - 1)
-        {
             return FieldsPerChannel * ChannelCount - 1;
-        }
 
         int change = column - CurrentColumn;
 

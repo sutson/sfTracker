@@ -4,15 +4,15 @@ namespace sfTracker.GUI
 {
     public class ColumnDefinitions
     {
-        public double noteX { get; private set; }
-        public double instrFirstX { get; private set; }
-        public double instrSecondX { get; private set; }
-        public double instrThirdX { get; private set; }
-        public double volFirstX { get; private set; }
-        public double volSecondX { get; private set; }
-        public double effectTypeX { get; private set; }
-        public double effectFirstX { get; private set; }
-        public double effectSecondX { get; private set; }
+        public double NoteX { get; private set; }
+        public double InstrFirstX { get; private set; }
+        public double InstrSecondX { get; private set; }
+        public double InstrThirdX { get; private set; }
+        public double VolFirstX { get; private set; }
+        public double VolSecondX { get; private set; }
+        public double EffectTypeX { get; private set; }
+        public double EffectFirstX { get; private set; }
+        public double EffectSecondX { get; private set; }
 
         private double NoteWidth { get; set; }
         private double DigitWidth { get; set; }
@@ -21,18 +21,18 @@ namespace sfTracker.GUI
 
         public ColumnDefinitions(double startX, double noteWidth, double digitWidth, double padding)
         {
-            noteX = startX + padding / 2;
+            NoteX = startX + padding / 2;
 
-            instrFirstX = noteX + noteWidth + padding;
-            instrSecondX = instrFirstX + digitWidth;
-            instrThirdX = instrSecondX + digitWidth;
+            InstrFirstX = NoteX + noteWidth + padding;
+            InstrSecondX = InstrFirstX + digitWidth;
+            InstrThirdX = InstrSecondX + digitWidth;
 
-            volFirstX = instrThirdX + digitWidth + padding;
-            volSecondX = volFirstX + digitWidth;
+            VolFirstX = InstrThirdX + digitWidth + padding;
+            VolSecondX = VolFirstX + digitWidth;
 
-            effectTypeX = volSecondX + digitWidth + padding;
-            effectFirstX = effectTypeX + digitWidth;
-            effectSecondX = effectFirstX + digitWidth;
+            EffectTypeX = VolSecondX + digitWidth + padding;
+            EffectFirstX = EffectTypeX + digitWidth;
+            EffectSecondX = EffectFirstX + digitWidth;
 
             NoteWidth = noteWidth;
             DigitWidth = digitWidth;
@@ -42,10 +42,10 @@ namespace sfTracker.GUI
         public List<double> GetColumnCoordinates()
         {
             return [
-                noteX - Padding/2,
-                instrFirstX, instrSecondX, instrThirdX,
-                volFirstX, volSecondX,
-                effectTypeX, effectFirstX, effectSecondX
+                NoteX - Padding/2,
+                InstrFirstX, InstrSecondX, InstrThirdX,
+                VolFirstX, VolSecondX,
+                EffectTypeX, EffectFirstX, EffectSecondX
             ];
         }
 
@@ -53,7 +53,7 @@ namespace sfTracker.GUI
         {
             return [
                 NoteWidth,                          // note 
-                DigitWidth, DigitWidth, DigitWidth, // instrument (3 digits)
+                DigitWidth, DigitWidth, DigitWidth, // Instrument (3 digits)
                 DigitWidth, DigitWidth,             // volume (2 digits)
                 DigitWidth, DigitWidth, DigitWidth  // effects (1 type char + 2 digits)
             ];

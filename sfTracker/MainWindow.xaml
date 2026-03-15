@@ -664,7 +664,7 @@
                                 Padding="5"
                                 FontWeight="DemiBold"
                                 Background="#babae0"
-                                Click="Button_OpenSF2"
+                                Click="OpenSF2Button_Click"
                             >
                                 Import .sf2 File
                             </Button>

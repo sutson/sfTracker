@@ -34,6 +34,6 @@ namespace sfTracker.Common
         public const int DefaultSpeed = 6;
         public const int DefaultRowCount = 32;
         public const int DefaultRowHighlight = 4;
-        public const int DefaultChannelCount = 8;
+        public const int DefaultChannelCount = 12;
     }
 }
