@@ -1,5 +1,8 @@
 ﻿namespace sfTracker.Controls
 {
+    /// <summary>
+    /// Enum for note transposition values.
+    /// </summary>
     public enum PitchChange
     {
         IncreaseSemitone = 1,

@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace sfTracker.Controls
+﻿namespace sfTracker.Controls
 {
+    /// <summary>
+    /// Enum for keybinds which are not part of the standard note placements.
+    /// </summary>
     public enum Keybinds
     {
         StopNote = 1,

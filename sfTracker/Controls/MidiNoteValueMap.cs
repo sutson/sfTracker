@@ -1,5 +1,8 @@
 ﻿namespace sfTracker.Controls
 {
+    /// <summary>
+    /// Enum for MIDI notes to their associated MIDI values.
+    /// </summary>
     public enum MidiNoteValueMap
     {
         C_3         = 48,

@@ -4,6 +4,9 @@ using System.Windows.Input;
 
 namespace sfTracker.Controls
 {
+    /// <summary>
+    /// Class which converts keyboard number inputs to their associated values.
+    /// </summary>
     public static class KeyboardToInt
     {
         public static readonly Dictionary<Key, int> Map =

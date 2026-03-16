@@ -4,6 +4,9 @@ using System.Windows.Input;
 
 namespace sfTracker.Controls
 {
+    /// <summary>
+    /// Class which converts keyboard key inputs to MIDI note values.
+    /// </summary>
     public static class KeyboardToMidiNote
     {
         public static readonly Dictionary<Key, MidiNoteValueMap> Map =
