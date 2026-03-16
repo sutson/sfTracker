@@ -9,20 +9,22 @@ using System.Linq;
 
 namespace sfTracker.GUI
 {
+    /// <summary>
+    /// Class which stores data which needs to be bound to GUI elements.
+    /// </summary>
     public class MainViewModel : INotifyPropertyChanged
     {
         public ObservableCollection<SoundFontPreset> Presets { get; set; } = [];
-        public ObservableCollection<TrackerColumn> Columns { get; } = [];
 
-        private SoundFontPreset _selectedPreset;
+        private SoundFontPreset selectedPreset;
         public SoundFontPreset SelectedPreset
         {
-            get => _selectedPreset;
+            get => selectedPreset;
             set
             {
-                if (_selectedPreset != value)
+                if (selectedPreset != value)
                 {
-                    _selectedPreset = value;
+                    selectedPreset = value;
                     OnPropertyChanged(nameof(SelectedPreset));
                 }
             }
@@ -31,6 +33,9 @@ namespace sfTracker.GUI
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
+        /// <summary>
+        /// Method to load a SoundFont and store an array of presets contained within it.
+        /// </summary>
         public ObservableCollection<SoundFontPreset> LoadSoundFont(string path)
         {
             var soundFont = new SoundFont(path);
@@ -47,7 +52,7 @@ namespace sfTracker.GUI
                     Name        = presets[i].Name,
                     Bank        = presets[i].BankNumber,
                     Instrument  = presets[i].PatchNumber,
-                    DisplayID   = i.ToString().PadLeft(3, '0'),
+                    DisplayID   = i.ToString().PadLeft(3, '0'), // display ID makes SoundFonts display consistently
                 });
             }
 
@@ -56,12 +61,20 @@ namespace sfTracker.GUI
             return Presets;
         }
 
+        public ObservableCollection<TrackerColumn> Columns { get; } = [];
+
+        /// <summary>
+        /// Method to generate an array of tracker columns which are used for setting mute/solo status.
+        /// </summary>
         public void GetColumns(int channelCount, double columnWidth)
         {
             for (int i = 0; i < channelCount; i++)
                 Columns.Add(new TrackerColumn { Index = i, ColumnWidth = columnWidth });
         }
 
+        /// <summary>
+        /// Method to reset mute/solo statuses for each column.
+        /// </summary>
         public void ResetColumns()
         {
             foreach (var column in Columns)
@@ -139,7 +152,7 @@ namespace sfTracker.GUI
             {
                 if (windowTitle != value)
                 {
-                    string displayName = value != "" ? $"{value} - " : value; 
+                    string displayName = value != "" ? $"{value} - " : value; // sfTracker default, [project name] - sfTracker if project has name
                     windowTitle = $"{displayName}sfTracker";
                     OnPropertyChanged(nameof(WindowTitle));
                 }
@@ -151,6 +164,9 @@ namespace sfTracker.GUI
             return Math.Clamp(value, minValue, maxValue);
         }
 
+        /// <summary>
+        /// Method to set view model data directly.
+        /// </summary>
         public void SetViewModelData(int bpm, int speed, int rowCount, int rowHighlight, string title)
         {
             BPM = bpm;

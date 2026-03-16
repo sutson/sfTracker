@@ -2,6 +2,9 @@
 
 namespace sfTracker.GUI
 {
+    /// <summary>
+    /// Class which generates x-coordinates for a given channel/column based on a starting reference point.
+    /// </summary>
     public class ColumnDefinitions
     {
         public double NoteX { get; private set; }
@@ -18,9 +21,9 @@ namespace sfTracker.GUI
         private double DigitWidth { get; set; }
         private double Padding { get; set; }
 
-
         public ColumnDefinitions(double startX, double noteWidth, double digitWidth, double padding)
         {
+            // define layout of note, instrument, volume and effects
             NoteX = startX + padding / 2;
 
             InstrFirstX = NoteX + noteWidth + padding;
@@ -34,11 +37,15 @@ namespace sfTracker.GUI
             EffectFirstX = EffectTypeX + digitWidth;
             EffectSecondX = EffectFirstX + digitWidth;
 
+            // set note, digit and padding data
             NoteWidth = noteWidth;
             DigitWidth = digitWidth;
             Padding = padding;
         }
 
+        /// <summary>
+        /// Method to get the starting x-coordinates of each field in a column/channel.
+        /// </summary>
         public List<double> GetColumnCoordinates()
         {
             return [
@@ -49,6 +56,9 @@ namespace sfTracker.GUI
             ];
         }
 
+        /// <summary>
+        /// Method to get the width of each field in a column/channel.
+        /// </summary>
         public List<double> GetColumnWidths()
         {
             return [

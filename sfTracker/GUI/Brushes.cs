@@ -3,6 +3,10 @@ using Color = System.Windows.Media.Color;
 
 namespace sfTracker.GUI
 {
+    /// <summary>
+    /// Class which creates instances of brushes and freezes them.
+    /// This improves GUI performance because the brushes are only created once and reused.
+    /// </summary>
     public class Brushes
     {
         public static SolidColorBrush FourthRowHighlight;
@@ -20,6 +24,7 @@ namespace sfTracker.GUI
         public static SolidColorBrush Red;
         public static SolidColorBrush OffWhite;
         public static SolidColorBrush CurrentFrameHighlight;
+
         public static void Init()
         {
             FourthRowHighlight = new SolidColorBrush(Color.FromArgb(5, 255, 255, 255));
