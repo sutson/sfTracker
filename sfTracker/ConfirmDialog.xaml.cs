@@ -2,6 +2,9 @@
 
 namespace sfTracker
 {
+    /// <summary>
+    /// Class representing the confirmation dialog window inside the WPF application. 
+    /// </summary>
     public partial class ConfirmDialog : Window
     {
         public bool Confirmed { get; private set; }

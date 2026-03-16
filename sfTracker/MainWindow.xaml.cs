@@ -20,6 +20,9 @@ using System.Windows.Media;
 
 namespace sfTracker
 {
+    /// <summary>
+    /// Class representing the main window of the WPF application. 
+    /// </summary>
     public partial class MainWindow : Window
     {
         private SynthEngine Engine;
