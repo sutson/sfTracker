@@ -4,7 +4,7 @@ namespace sfTracker.Tracker
 {
     /// <summary>
     /// Class which models an active voice.
-    /// This is used to determine which note is playing in a given channel (column) at a given time.
+    /// This is used to determine which note is playing in a given column/channel at a given time.
     /// </summary>
     public class Voice(int note, int bank, int instrument, int velocity)
     {

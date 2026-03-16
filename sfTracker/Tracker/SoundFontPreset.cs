@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace sfTracker.Tracker
+﻿namespace sfTracker.Tracker
 {
+    /// <summary>
+    /// Class for defining a SoundFont preset.
+    /// </summary>
     public class SoundFontPreset
     {
         public int ID { get; set; }

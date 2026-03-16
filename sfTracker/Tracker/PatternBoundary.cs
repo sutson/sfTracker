@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace sfTracker.Tracker
+﻿namespace sfTracker.Tracker
 {
+    /// <summary>
+    /// Class for defining a <c>Pattern</c> boundary.
+    /// This describes where the <c>Pattern</c> starts and how many rows it has.
+    /// </summary>
     public class PatternBoundary
     {
         public int Index;
