@@ -218,7 +218,7 @@ namespace sfTracker.Tracker
             // also if voice exists and stop note is present, turn off active voice
             if (voice != null || (voice != null && note == ProgramConstants.StopNote))
             {
-                if (note == voice.Note) { return; }; // don't retrigger if the same note is already playing
+                if (note == voice.Note && instrument == voice.Instrument) { return; }; // don't retrigger if the same note is already playing
 
                 NoteOff(channel, voice.Note);
                 SetBank(channel, bank);
