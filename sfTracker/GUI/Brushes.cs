@@ -12,7 +12,9 @@ namespace sfTracker.GUI
         public static SolidColorBrush FourthRowHighlight;
         public static SolidColorBrush InactiveFourthRowHighlight;
         public static SolidColorBrush CurrentCellHighlight;
+        public static SolidColorBrush CurrentCellEditHighlight;
         public static SolidColorBrush CurrentRowHighlight;
+        public static SolidColorBrush CurrentRowEditHighlight;
         public static SolidColorBrush ActivePatternBrush;
         public static SolidColorBrush InactivePatternBrush;
         public static SolidColorBrush LowOpacityTextBrush;
@@ -36,8 +38,14 @@ namespace sfTracker.GUI
             CurrentCellHighlight = new SolidColorBrush(Color.FromArgb(120, 0, 120, 215));
             CurrentCellHighlight.Freeze();
 
-            CurrentRowHighlight = new SolidColorBrush(Color.FromArgb(50, 10, 255, 255));
+            CurrentCellEditHighlight = new SolidColorBrush(Color.FromArgb(120, 120, 0, 215));
+            CurrentCellEditHighlight.Freeze();
+
+            CurrentRowHighlight = new SolidColorBrush(Color.FromArgb(40, 10, 255, 255));
             CurrentRowHighlight.Freeze();
+
+            CurrentRowEditHighlight = new SolidColorBrush(Color.FromArgb(100, 255, 100, 255));
+            CurrentRowEditHighlight.Freeze();
 
             ActivePatternBrush = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
             ActivePatternBrush.Freeze();

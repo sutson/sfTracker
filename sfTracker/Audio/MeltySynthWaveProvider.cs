@@ -17,8 +17,9 @@ namespace sfTracker.Audio
 
         private float[] floatBuffer = [];
 
-        public void Start()
+        public void Start(bool isKeyPress = false)
         {
+            if (isKeyPress) { return; } // don't start tracker logic if just getting key press feedback
             isPlaying = true;
         }
 
@@ -31,13 +32,6 @@ namespace sfTracker.Audio
 
         public int Read(byte[] buffer, int offset, int count)
         {
-            // if audio isn't playing, clear the buffer
-            if (!isPlaying)
-            {
-                Array.Clear(buffer, offset, count);
-                return count;
-            }
-
             // calculate how many samples are required to render
             // count is the total number of bytes requested to render
             // this must be converted to float samples so
@@ -57,16 +51,25 @@ namespace sfTracker.Audio
             // keep rendering audio until all the frames are done
             while (framesDone < framesRequired)
             {
-                double framesUntilNextTick = tracker.GetFramesUntilNextTick(); // calculate frames until next tracker "tick"
+                int framesThisBlock;
 
-                // this calculation should ensure that timing boundaries are respected and audio doesn't become mistimed
-                // (framesRequired - framesDone) determines the number of frames still needed to complete this block
-                int framesThisBlock = Math.Min((int)framesUntilNextTick, framesRequired - framesDone);
+                if (isPlaying)
+                {
+                    double framesUntilNextTick = tracker.GetFramesUntilNextTick(); // calculate frames until next tracker "tick"
 
-                // update volumes of all channels inside Read()
-                // to ensure they are changed before rendering
-                tracker.UpdateAllChannelVolumes();
-                tracker.UpdateAllChannelPannings();
+                    // this calculation should ensure that timing boundaries are respected and audio doesn't become mistimed
+                    // (framesRequired - framesDone) determines the number of frames still needed to complete this block
+                    framesThisBlock = Math.Min((int)framesUntilNextTick, framesRequired - framesDone);
+
+                    // update volumes of all channels inside Read()
+                    // to ensure they are changed before rendering
+                    tracker.UpdateAllChannelVolumes();
+                    tracker.UpdateAllChannelPannings();
+                }
+                else
+                {
+                    framesThisBlock = framesRequired - framesDone; // freeze frames while not playing
+                }
 
                 // RenderInterleaved fills the float buffer with audio data
                 // the multiplication by 2 is needed to account for stereo data
@@ -74,7 +77,8 @@ namespace sfTracker.Audio
                 // (framesThisBlock * 2) is the length of the data being written to floatBuffer this block
                 synthesizer.RenderInterleaved(floatBuffer.AsSpan(framesDone * 2, framesThisBlock * 2));
 
-                tracker.Advance(framesThisBlock); // advance the tracker by the number of frames rendered
+                if (isPlaying)
+                    tracker.Advance(framesThisBlock); // advance the tracker by the number of frames rendered
 
                 framesDone += framesThisBlock; // update count for number of frames completed
             }

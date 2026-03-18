@@ -52,10 +52,10 @@ namespace sfTracker.Audio
         /// <summary>
         /// Method to begin audio playback via WaveOutEvent.
         /// </summary>
-        public void PlayAudio()
+        public void PlayAudio(bool isKeyPress = false)
         {
-            //Console.WriteLine("Playing audio");
-            waveProvider.Start();
+            // isKeyPress determines if the tracker logic should start, or just the audio engine
+            waveProvider.Start(isKeyPress);
             isPlayingAudio = true;
         }
 
@@ -64,7 +64,6 @@ namespace sfTracker.Audio
         /// </summary>
         public void StopAudio()
         {
-            //Console.WriteLine("Stopping audio");
             StopActiveNotes(); // Ensure that all notes are properly turned off when stopping the audio
             waveProvider.Stop();
             isPlayingAudio = false;

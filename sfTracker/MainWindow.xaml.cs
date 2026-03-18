@@ -1,5 +1,6 @@
 ﻿using sfTracker.Audio;
 using sfTracker.Common;
+using sfTracker.Controls;
 using sfTracker.GUI;
 using sfTracker.Helpers;
 using sfTracker.Playback;
@@ -59,8 +60,8 @@ namespace sfTracker
                 bpm: vm.BPM
             );
 
-            //this.KeyDown += new System.Windows.Input.KeyEventHandler(OnKeyPress);
-            //this.KeyUp += new System.Windows.Input.KeyEventHandler(OnKeyRelease);
+            PreviewKeyDown += new System.Windows.Input.KeyEventHandler(OnKeyDown);
+            PreviewKeyUp += new System.Windows.Input.KeyEventHandler(OnKeyUp);
         }
 
         /// <summary>
@@ -172,6 +173,7 @@ namespace sfTracker
         {
             ObservableCollection<SoundFontPreset> presets = vm.LoadSoundFont(path);
             Tracker.PresetList = presets;
+            Tracker.RecalculatePresets();
         }
 
         /// <summary>
@@ -673,14 +675,12 @@ namespace sfTracker
         {
             // for each below, only perform the update if the value has changed
             if (vm.BPM != Engine.Tracker.BPM)
-            {
                 Engine.Tracker.SetBPM(vm.BPM);
-            }
-            else if (vm.Speed != Engine.Tracker.Speed)
-            {
+            
+            if (vm.Speed != Engine.Tracker.Speed)
                 Engine.Tracker.SetSpeed(vm.Speed);
-            }
-            else if (vm.RowCount != Tracker.RowsPerPattern)
+
+            if (vm.RowCount != Tracker.RowsPerPattern)
             {
                 Engine.Tracker.EarlyStoppingIndex = vm.RowCount;
                 Tracker.GlobalCurrentRow = 0; // reset to start to avoid indexing issues
@@ -688,10 +688,9 @@ namespace sfTracker
                 Tracker.ResetToFirstRow();
                 InitialiseTracker(SelectedSoundFont.Text, Engine.Tracker.Patterns, vm.BPM); // need to re-initialise for this change
             }
-            else if (vm.RowHighlight != Tracker.RowHighlight)
-            {
+            
+            if (vm.RowHighlight != Tracker.RowHighlight)
                 Tracker.RowHighlight = vm.RowHighlight;
-            }
         }
 
         /// <summary>
@@ -852,8 +851,13 @@ namespace sfTracker
             string json = File.ReadAllText(filePath);
             ProjectFile project = JsonSerializer.Deserialize<ProjectFile>(json);
 
+            // update project name if file name has changed
+            string projectName = project.ProjectName;
+            string parsedFileName = GetParsedFileName(filePath);
+            if (projectName != parsedFileName) { projectName = parsedFileName; }
+
             // update view model data
-            vm.SetViewModelData(project.BPM, project.Speed, project.RowCount, project.RowHighlight, project.ProjectName);
+            vm.SetViewModelData(project.BPM, project.Speed, project.RowCount, project.RowHighlight, projectName);
 
             // refill unused row data which was removed during save
             // TODO: make this generic and use between both save and load
@@ -868,10 +872,9 @@ namespace sfTracker
             }
 
             // update project information and settings, then re-initialise tracker
-            ProjectTitle = filePath;
-            vm.ResetColumns();
-            UpdateTrackerSettings();
+            ProjectTitle = projectName;
             InitialiseTracker(project.SoundFont, resizedPatterns, project.BPM);
+            UpdateTrackerSettings();
         }
 
         private bool GetConfirmationDialog(string title)
@@ -928,43 +931,51 @@ namespace sfTracker
             return "";
         }
 
-        //TODO: try to get this to work properly if i have time
+        /// <summary>
+        /// Event listener for key press.
+        /// This is used to hear a preview of the note associated with the pressed key.
+        /// </summary>
+        private void OnKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == Key.Space) { Tracker.IsEditing = !Tracker.IsEditing; } // change edit state with space bar
 
-        //private void OnKeyPress(object sender, System.Windows.Input.KeyEventArgs e)
-        //{
-        //    Console.WriteLine($"note: {Tracker.GetMidiNote(e.Key)}");
-        //    if (Tracker.GetMidiNote(e.Key) == null) { return; }
+            if (IsPlaying || Keyboard.FocusedElement is System.Windows.Controls.TextBox) { return; } // don't fire event if textbox is focused
 
-        //    if ((int)Tracker.GetMidiNote(e.Key) == currentlyPlayingNote ) { return; } 
+            MidiNoteValueMap? note = Tracker.GetMidiNote(e.Key);
+            if (note == null || currentlyPlayingNote > 0) { return; } // don't allow key press if note already playing
 
-        //    if (e.Key != Key.Enter)
-        //    {
-        //        Console.WriteLine("ojisdfgjiogsd");
-        //        Engine.Start();
-        //        Engine.Tracker.TriggerNoteWithKeyboard(
-        //            Tracker.CurrentColumn,
-        //            (int)Tracker.GetMidiNote(e.Key),
-        //            vm.SelectedPreset.Bank,
-        //            vm.SelectedPreset.Instrument,
-        //            100,
-        //            trigger: true
-        //        );
+            // start audio playback, then trigger the note
+            Engine.PlayAudio(isKeyPress: true);
+            Engine.Tracker.TriggerNoteWithKeyboard(
+                channel:    0,
+                note:       (int)note - 12, // TODO: generalise
+                bank:       vm.SelectedPreset.Bank,
+                instrument: vm.SelectedPreset.Instrument,
+                velocity:   ProgramConstants.MaxVolume,
+                trigger:    true
+            ); 
 
-        //        currentlyPlayingNote = (int)Tracker.GetMidiNote(e.Key);
-        //    }
-        //}
+            currentlyPlayingNote = (int)note - 12; // store current note so it can be switched off
+        }
 
-        //private void OnKeyRelease(object sender, System.Windows.Input.KeyEventArgs e)
-        //{
-        //    Engine.StopAudio();
-        //    Engine.Tracker.TriggerNoteWithKeyboard(
-        //        Tracker.CurrentColumn,
-        //        currentlyPlayingNote,
-        //        -1,
-        //        -1,
-        //        100
-        //    );
-        //    currentlyPlayingNote = -1;
-        //}
+        /// <summary>
+        /// Event listener for key release.
+        /// This is used to switch off the preview of the note associated with the most recently pressed key.
+        /// </summary>
+        private void OnKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (IsPlaying || currentlyPlayingNote == -1) { return; } // don't fire if no note being played
+
+            // switch off the currently playing note, then stop audio playback
+            Engine.Tracker.TriggerNoteWithKeyboard(
+                channel:    0,
+                note:       currentlyPlayingNote,
+                bank:       -1,
+                instrument: -1,
+                velocity:   0
+            );
+            currentlyPlayingNote = -1;
+            Engine.StopAudio();
+        }
     }
 }

@@ -1,8 +1,8 @@
 ﻿using MeltySynth;
 using sfTracker.Common;
+using sfTracker.Controls;
 using sfTracker.Playback;
 using System;
-using sfTracker.Controls;
 using System.Collections.Generic;
 
 namespace sfTracker.Tracker
@@ -162,8 +162,6 @@ namespace sfTracker.Tracker
         {
             if (CurrentTick % TicksPerBeat == 0)
                 TriggerRow(); // trigger row on each beat
-            else
-                ProcessTickEffects(); // TODO: implement effects functionality
 
             CurrentTick++; // advance to next tick
 
@@ -218,7 +216,7 @@ namespace sfTracker.Tracker
             // also if voice exists and stop note is present, turn off active voice
             if (voice != null || (voice != null && note == ProgramConstants.StopNote))
             {
-                if (note == voice.Note && instrument == voice.Instrument) { return; }; // don't retrigger if the same note is already playing
+                //if (note == voice.Note && instrument == voice.Instrument) { return; }; // don't retrigger if the same note is already playing
 
                 NoteOff(channel, voice.Note);
                 SetBank(channel, bank);
@@ -302,7 +300,7 @@ namespace sfTracker.Tracker
         public static string CalculateMidiNote(int note)
         {
             string[] notes = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
-            int octave = (int)Math.Floor(note / 12.0) - 1;
+            int octave = (int)Math.Floor(note / 12.0);
             return $"{notes[note % 12]}{octave}"; // return note in the form [note][octave], eg. C-4 or C#4
         }
 
@@ -358,26 +356,18 @@ namespace sfTracker.Tracker
             synthesizer.ProcessMidiMessage(channel, 0xB0, 10, (int)(ProgramConstants.DefaultPanning + panningAmount));
         }
 
-        private static void ProcessTickEffects()
-        {
-            // volume, vibrato, portamento, etc. here
-        }
-
-
         /// <summary>
         /// Method to trigger note temporarily. TODO: this doesn't work as expected, decide if should keep
         /// </summary>
         public void TriggerNoteWithKeyboard(int channel, int note, int bank, int instrument, int velocity, bool trigger = false)
         {
             if (trigger) {
-                Console.WriteLine($"ON: channel {channel}, note {note}, bank {bank}, instr {instrument}, vel {velocity}");
                 SetBank(channel, bank);
                 SetInstrument(channel, instrument);
                 NoteOn(channel, note, velocity);
             }
             else
             {
-                Console.WriteLine($"OFF: channel {channel}, note {note}, bank {bank}, instr {instrument}, vel {velocity}");
                 NoteOff(channel, note);
             }
         }

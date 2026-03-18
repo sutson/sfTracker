@@ -41,6 +41,7 @@ public class TrackerGrid : FrameworkElement
     public int RowsPerPattern = 0;
     public int RowHighlight = 0;
     public List<Pattern> Patterns = [];
+    public bool IsEditing = false;
 
     // instrument data
     private int SelectedBank = -1;
@@ -200,7 +201,7 @@ public class TrackerGrid : FrameworkElement
 
         // highlight current row
         context.DrawRectangle(
-            Brushes.CurrentRowHighlight,
+            IsEditing ? Brushes.CurrentRowEditHighlight : Brushes.CurrentRowHighlight,
             null,
             new Rect(
                 0,
@@ -218,12 +219,14 @@ public class TrackerGrid : FrameworkElement
         double volFirstX, double volSecondX, double effectTypeX, double effectFirstX, double effectSecondX, double y
     )
     {
+        Brush brush = IsEditing ? Brushes.CurrentRowEditHighlight : Brushes.CurrentCellHighlight;
+
         // based on currently selected field, highlight this part of the selected channel/column
         switch (CurrentField)
         {
             case TrackerField.Note:
                 context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
+                    brush,
                     null,
                     new Rect(channelX, y, NoteWidth + ChannelInnerPadding, RowHeight)
                 );
@@ -231,7 +234,7 @@ public class TrackerGrid : FrameworkElement
 
             case TrackerField.InstrumentFirstDigit:
                 context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
+                    brush,
                     null,
                     new Rect(instrFirstX, y, DigitWidth, RowHeight)
                 );
@@ -239,7 +242,7 @@ public class TrackerGrid : FrameworkElement
 
             case TrackerField.InstrumentSecondDigit:
                 context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
+                    brush,
                     null,
                     new Rect(instrSecondX, y, DigitWidth, RowHeight)
                 );
@@ -247,7 +250,7 @@ public class TrackerGrid : FrameworkElement
 
             case TrackerField.InstrumentThirdDigit:
                 context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
+                    brush,
                     null,
                     new Rect(instrThirdX, y, DigitWidth, RowHeight)
                 );
@@ -255,7 +258,7 @@ public class TrackerGrid : FrameworkElement
 
             case TrackerField.VolumeFirstDigit:
                 context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
+                    brush,
                     null,
                     new Rect(volFirstX, y, DigitWidth, RowHeight)
                 );
@@ -263,7 +266,7 @@ public class TrackerGrid : FrameworkElement
 
             case TrackerField.VolumeSecondDigit:
                 context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
+                    brush,
                     null,
                     new Rect(volSecondX, y, DigitWidth, RowHeight)
                 );
@@ -271,7 +274,7 @@ public class TrackerGrid : FrameworkElement
 
             case TrackerField.EffectType:
                 context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
+                    brush,
                     null,
                     new Rect(effectTypeX, y, DigitWidth, RowHeight)
                 );
@@ -279,7 +282,7 @@ public class TrackerGrid : FrameworkElement
 
             case TrackerField.EffectFirstDigit:
                 context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
+                    brush,
                     null,
                     new Rect(effectFirstX, y, DigitWidth, RowHeight)
                 );
@@ -287,7 +290,7 @@ public class TrackerGrid : FrameworkElement
 
             case TrackerField.EffectSecondDigit:
                 context.DrawRectangle(
-                    Brushes.CurrentCellHighlight,
+                    brush,
                     null,
                     new Rect(effectSecondX, y, DigitWidth, RowHeight)
                 );
@@ -514,18 +517,22 @@ public class TrackerGrid : FrameworkElement
                 break;
 
             case Key.Oem3: // '@ key
+                if (!IsEditing) { return; }
                 HandlePitchChange(PitchChange.DecreaseSemitone);
                 break;
 
             case Key.Oem7: // #~ key
+                if (!IsEditing) { return; }
                 HandlePitchChange(PitchChange.IncreaseSemitone);
                 break;
 
             case Key.Oem4: // [{ key
+                if (!IsEditing) { return; }
                 HandlePitchChange(PitchChange.DecreaseOctave);
                 break;
 
             case Key.Oem6: // ]} key
+                if (!IsEditing) { return; }
                 HandlePitchChange(PitchChange.IncreaseOctave);
                 break;
 
@@ -554,6 +561,8 @@ public class TrackerGrid : FrameworkElement
                 break;
         }
 
+        if (!IsEditing) { return; }
+
         switch (CurrentField)
         {
             case TrackerField.Note:
@@ -576,7 +585,7 @@ public class TrackerGrid : FrameworkElement
                 if (note != null)
                 {
                     UpdateNote(
-                        note: (int)note.Value,
+                        note: (int)note.Value - 12, // TODO: not sure if this will break something but sf2 pitches are weird
                         bank: SelectedBank,
                         instrument: SelectedInstrument == -1 ? 0 : SelectedInstrument,
                         instrumentID: SelectedInstrumentID == -1 ? 0 : SelectedInstrumentID,
@@ -651,7 +660,7 @@ public class TrackerGrid : FrameworkElement
                 }
                 break;
 
-            case TrackerField.EffectSecondDigit:
+            case TrackerField.EffectSecondDigit: // TODO: cap value properly at 50
                 if (IsKeyDigit(e.Key))
                 {
                     int? value = GetIntFromKey(e.Key);
@@ -863,8 +872,6 @@ public class TrackerGrid : FrameworkElement
     /// </summary>
     private void HandleEffectTypeChange(PanEffect effect)
     {
-        // do nothing if note is empty or stop note
-        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) { return; }
         UpdatePanning(effect);
         GlobalCurrentRow++;
     }
@@ -874,8 +881,8 @@ public class TrackerGrid : FrameworkElement
     /// </summary>
     private void ChangeNoteInstrument(int digitIndex, int newValue)
     {
-        // do nothing if note is empty or stop note
-        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) { return; }
+        // just move to next row if note is empty or stop note
+        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) { GlobalCurrentRow++; return; }
 
         // update instrument ID based on display value, needed because the user can change any of the three digits
         // so must be converted to 3-digit number then parsed back to an integer
@@ -890,11 +897,29 @@ public class TrackerGrid : FrameworkElement
         SoundFontPreset preset = GetSoundFontPresetFromID(updatedInstrumentID);
         if (preset == null) { return; } // TODO: update to make instrument colour red if no preset found
         UpdateInstrument(instrument: preset.Instrument, instrumentID: preset.ID);
+        GlobalCurrentRow++;
+    }
+
+    /// <summary>
+    /// Method to recalculate which preset should be used when changing SoundFonts.
+    /// This is required because otherwise the displayed IDs don't necessarily match with the preset when a new SoundFont is loaded in.
+    /// </summary>
+    public void RecalculatePresets()
+    {
+        for (int pattern = 0; pattern < Patterns.Count; pattern++)
+            for (int row = 0; row < Patterns[pattern].Rows.Length; row++)
+                for (int cell = 0; cell < Patterns[pattern].Rows[row].Cells.Length; cell++)
+                {
+                    SoundFontPreset preset = GetSoundFontPresetFromID(Patterns[pattern].Rows[row].Cells[cell].InstrumentID);
+                    if (preset == null) { continue; } // TODO: update to make instrument colour red if no preset found
+                    Engine.Tracker.Patterns[pattern].Rows[row].Cells[cell].Instrument = preset.Instrument;
+                    Engine.Tracker.Patterns[pattern].Rows[row].Cells[cell].InstrumentID = preset.ID;
+                }
     }
 
     private SoundFontPreset GetSoundFontPresetFromID(int id)
     {
-        return PresetList.FirstOrDefault(x => x.ID == id); ;
+        return PresetList.FirstOrDefault(x => x.ID == id);
     }
 
     /// <summary>
@@ -1156,7 +1181,7 @@ public class TrackerGrid : FrameworkElement
         return (key >= Key.D0 && key <= Key.D9) || (key >= Key.NumPad0 && key <= Key.NumPad9); // numpad digits
     }
 
-    public static MidiNoteValueMap? GetMidiNote(Key key)
+    public MidiNoteValueMap? GetMidiNote(Key key)
     {
         if (KeyboardToMidiNote.Map.TryGetValue(key, out var note))
             return note;
