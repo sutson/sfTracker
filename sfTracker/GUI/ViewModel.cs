@@ -22,7 +22,7 @@ namespace sfTracker.GUI
             get => selectedPreset;
             set
             {
-                if (selectedPreset != value)
+                if (!ReferenceEquals(selectedPreset, value))
                 {
                     selectedPreset = value;
                     OnPropertyChanged(nameof(SelectedPreset));

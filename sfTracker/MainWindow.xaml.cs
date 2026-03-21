@@ -50,6 +50,7 @@ namespace sfTracker
             InitializeComponent();
             vm = new MainViewModel(); // initialise view model for updating fields in the GUI
             vm.GetColumns(ProgramConstants.DefaultChannelCount, Tracker.ColumnWidth); // get column data for mute/solo statuses
+            vm.PropertyChanged += InstrumentChanged;
             DataContext = vm; // set the data context
 
             // initialise tracker with default settings
@@ -157,7 +158,6 @@ namespace sfTracker
             Tracker.RowChanged -= Tracker_RowChanged;
             Tracker.ColumnChanged -= Tracker_ColumnChanged;
             Tracker.PatternChanged -= Tracker_PatternChanged;
-            vm.PropertyChanged -= InstrumentChanged;
         }
 
         private void EnableEventListeners()
@@ -170,7 +170,6 @@ namespace sfTracker
             Tracker.RowChanged += Tracker_RowChanged;
             Tracker.ColumnChanged += Tracker_ColumnChanged;
             Tracker.PatternChanged += Tracker_PatternChanged;
-            vm.PropertyChanged += InstrumentChanged;
         }
 
         private void LoadSoundFont(string path)
