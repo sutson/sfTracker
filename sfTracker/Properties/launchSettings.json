@@ -1,8 +1,7 @@
 {
   "profiles": {
     "sfTracker": {
-      "commandName": "Project",
-      "workingDirectory": "C:\\Main\\Uni\\CM4134 - Capstone Project\\sfTracker"
+      "commandName": "Project"
     }
   }
 }

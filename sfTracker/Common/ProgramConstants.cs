@@ -31,7 +31,7 @@ namespace sfTracker.Common
         public const int MinRowHighlight = 1;
         public const int MaxRowHighlight = 32;
 
-        public const string DefaultSoundFont = "Kirby's_Dream_Land_3.sf2"; // TODO: find a way to make this not required
+        public const string DefaultSoundFont = "Data\\Kirby's_Dream_Land_3.sf2"; // TODO: find a way to make this not required
 
         public const int DefaultBPM = 120;
         public const int DefaultSpeed = 6;

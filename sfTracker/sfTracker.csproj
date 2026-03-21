@@ -15,5 +15,9 @@
     <Page Include="App.xaml" />
   </ItemGroup>
 
-
+  <ItemGroup>
+    <None Update="Data\Kirby%27s_Dream_Land_3.sf2">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
