@@ -24,6 +24,7 @@ public class TrackerGrid : FrameworkElement
     private readonly int TrackerMarginTop = -200;
     public readonly double RowHeight = 15;
     public readonly int LeadInRows = 8; // number of "invisible rows" at the top of the tracker field
+    public int TopMargin => LeadInRows * (int)RowHeight; // calculate point at which rows should stop being rendered
     public int VisibleRowCount => (int)(ActualHeight / RowHeight) + 1; // TODO: consider making this just 1 so scrolling keeps now playing bar in the same place
     public SynthEngine Engine { get; set; } // instance of synth engine for updating patterns
 
@@ -116,6 +117,9 @@ public class TrackerGrid : FrameworkElement
             // render using active colour if current pattern
             var brush = (i == CurrentPatternIndex) ? Brushes.ActivePatternBrush : Brushes.InactivePatternBrush;
 
+            // don't render patterns which aren't visible
+            if (!ShouldRenderPattern(globalRowOffset)) { globalRowOffset += RowsPerPattern; continue; }
+
             for (int row = 0; row < RowsPerPattern; row++)
             {
                 int absoluteRow = globalRowOffset + row;
@@ -123,7 +127,7 @@ public class TrackerGrid : FrameworkElement
 
                 // render row only if it should be visible
                 // this renders the row numbers along the left-hand side
-                if (y + (LeadInRows * RowHeight) >= 0)
+                if (y + TopMargin >= 0)
                 {
                     context.DrawText(
                         RenderText(
@@ -138,7 +142,7 @@ public class TrackerGrid : FrameworkElement
 
                 for (int channel = 0; channel < ChannelCount; channel++)
                 {
-                    if (y + (LeadInRows * RowHeight) < 0 || y > MaxRenderHeight) // don't render anything outside visible region
+                    if (y + TopMargin < 0 || y > MaxRenderHeight) // don't render anything outside visible region
                         continue;
 
                     // get starting x-coordinates of each field in the column
@@ -448,6 +452,24 @@ public class TrackerGrid : FrameworkElement
         return text;
     }
 
+    /// <summary>
+    /// Method to determine if the current pattern should be rendered on the screen.
+    /// This is checked before looping through rows to prevent extraneous calculations
+    /// </summary>
+    private bool ShouldRenderPattern(int offset)
+    {
+        int patternStartRow = offset;
+        int patternEndRow = patternStartRow + RowsPerPattern;
+
+        double patternTop = (patternStartRow - FirstVisibleRow) * RowHeight;
+        double patternBottom = (patternEndRow - FirstVisibleRow) * RowHeight;
+
+        if (patternBottom < -TopMargin || patternTop > MaxRenderHeight) // don't render anything outside visible range
+            return false;
+
+        return true;
+    }
+
     public static string GetNoteTextToRender(int note)
     {
         if (note == -1) return "---";
@@ -561,7 +583,12 @@ public class TrackerGrid : FrameworkElement
                 break;
         }
 
-        if (!IsEditing) { return; }
+        if (!IsEditing) {
+            Focus();
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
 
         switch (CurrentField)
         {
@@ -577,7 +604,7 @@ public class TrackerGrid : FrameworkElement
                         panning: ProgramConstants.DefaultPanEffect
                     );
 
-                    GlobalCurrentRow++; // move down after note is placed
+                    if (GlobalCurrentRow < TotalRowCount - 1) { GlobalCurrentRow++; } // move down after note is placed
                     break;
                 }
 
@@ -593,7 +620,7 @@ public class TrackerGrid : FrameworkElement
                         panning: ProgramConstants.DefaultPanEffect
                     );
 
-                    GlobalCurrentRow++;
+                    if (GlobalCurrentRow < TotalRowCount - 1) { GlobalCurrentRow++; }
                 }
                 break;
 
@@ -849,7 +876,7 @@ public class TrackerGrid : FrameworkElement
         if (IsBackspace)
             GlobalCurrentRow--; // move up if backspace used to delete
         else
-            GlobalCurrentRow++;
+            if (GlobalCurrentRow < TotalRowCount - 1) { GlobalCurrentRow++; }
     }
 
     /// <summary>
@@ -873,7 +900,7 @@ public class TrackerGrid : FrameworkElement
     private void HandleEffectTypeChange(PanEffect effect)
     {
         UpdatePanning(effect);
-        GlobalCurrentRow++;
+        if (GlobalCurrentRow < TotalRowCount - 1) { GlobalCurrentRow++; }
     }
 
     /// <summary>
@@ -882,7 +909,10 @@ public class TrackerGrid : FrameworkElement
     private void ChangeNoteInstrument(int digitIndex, int newValue)
     {
         // just move to next row if note is empty or stop note
-        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) { GlobalCurrentRow++; return; }
+        if (Engine.Tracker.Patterns[CurrentPatternIndex].Rows[PatternCurrentRow].Cells[CurrentChannel].Note < 0) {
+            if (GlobalCurrentRow < TotalRowCount - 1) { GlobalCurrentRow++; }
+            return;
+        }
 
         // update instrument ID based on display value, needed because the user can change any of the three digits
         // so must be converted to 3-digit number then parsed back to an integer
@@ -897,7 +927,7 @@ public class TrackerGrid : FrameworkElement
         SoundFontPreset preset = GetSoundFontPresetFromID(updatedInstrumentID);
         if (preset == null) { return; } // TODO: update to make instrument colour red if no preset found
         UpdateInstrument(instrument: preset.Instrument, instrumentID: preset.ID);
-        GlobalCurrentRow++;
+        if (GlobalCurrentRow < TotalRowCount - 1) { GlobalCurrentRow++; }
     }
 
     /// <summary>
@@ -940,7 +970,7 @@ public class TrackerGrid : FrameworkElement
         );
 
         UpdateVolume(updatedVolume);
-        GlobalCurrentRow++;
+        if (GlobalCurrentRow < TotalRowCount - 1) { GlobalCurrentRow++; }
     }
 
     /// <summary>
@@ -967,7 +997,7 @@ public class TrackerGrid : FrameworkElement
         );
 
         UpdatePanning(updatedPanning);
-        GlobalCurrentRow++;
+        if (GlobalCurrentRow < TotalRowCount - 1) { GlobalCurrentRow++; }
     }
 
     /// <summary>
@@ -1092,10 +1122,18 @@ public class TrackerGrid : FrameworkElement
     /// </summary>
     private int WrapRow(int row)
     {
-        if (row < 0 || row >= TotalRowCount) // scrolling outside of start and end bounds resets to first row
+        if (row >= TotalRowCount) // scrolling beyond the last row resets to first row
         {
             ResetToFirstRow();
             return 0;
+        }
+
+        else if (row < 0) // scrolling before first row wraps to last row
+        {
+            CurrentPatternIndex = Patterns.Count - 1; // update current pattern to last pattern
+            RowOffset = RowsPerPattern * CurrentPatternIndex; // update row offset to last pattern
+            PatternChanged?.Invoke(CurrentPatternIndex);
+            return TotalRowCount - 1;
         }
 
         else if (row - RowOffset >= RowsPerPattern) // scrolling into next pattern

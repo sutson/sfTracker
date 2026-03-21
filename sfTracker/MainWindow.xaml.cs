@@ -31,6 +31,7 @@ namespace sfTracker
         private readonly MainViewModel vm;
         private readonly double MousePositionOffsetX = 40;
         private readonly double MousePositionOffsetY = 450;
+        private readonly double MousePositionChannelHeader = 330;
 
         private int totalRowCount = 0;
         private double resumePlaybackRow = 0;
@@ -42,6 +43,7 @@ namespace sfTracker
         public double currentRowPosition;
         public int currentlyPlayingNote;
         private string ProjectTitle = "";
+        private string SoundFontPath = "";
 
         public MainWindow()
         {
@@ -80,8 +82,10 @@ namespace sfTracker
 
             ComputePatternBoundaries(); // determine start and end indeces for each pattern
             LoadSoundFont(soundFont); // load the soundfont
+            UpdateVisibleFrames(0); // update the frame view at the top of the tracker
             EnableEventListeners();
-            SelectedSoundFont.Text = $"{soundFont}"; // update soundfont display TODO: move this to view model
+            SelectedSoundFont.Text = $"{GetParsedFileName(soundFont)}"; // update soundfont display TODO: move this to view model
+            SoundFontPath = soundFont;
 
             // set scrollbar boundaries
             UpdateScrollbarBounds();
@@ -272,8 +276,6 @@ namespace sfTracker
                 playbackClock.Stop(); // stop the playback clock
                 CompositionTarget.Rendering -= OnFrame; // stop playback rendering
             }
-
-            InvalidateVisual(); // re-render GUI
         }
 
         public void SetVerticalScrollbarValue(double value)
@@ -361,6 +363,15 @@ namespace sfTracker
                 SetFrameVerticalScrollbarValue(FrameVerticalScrollBar.Value - FrameVerticalScrollBar.SmallChange);
         }
 
+        /// <summary>
+        /// Method to prevent dragging the scrollbar in the frame select grid.
+        /// TODO: find a way to allow this and make it less buggy so this isn't needed
+        /// </summary>
+        private void FrameVerticalScrollBar_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true; // ignore clicks/drags
+        }
+
         private void Tracker_RowChanged(int newRow)
         {
             IsInternalScrollChange = true;
@@ -379,7 +390,7 @@ namespace sfTracker
         {
             IsInternalScrollChange = true;
             FrameVerticalScrollBar.Value = newPattern;
-            UpdateVisibleFrames(newPattern); // update visible frames when switchin to a different pattern
+            UpdateVisibleFrames(newPattern); // update visible frames when switching to a different pattern
             IsInternalScrollChange = false;
         }
 
@@ -421,6 +432,8 @@ namespace sfTracker
             if (IsPlaying) { return; }
             double mousePosX = e.GetPosition(this).X;
             double mousePosY = e.GetPosition(this).Y;
+
+            if (mousePosY < MousePositionChannelHeader) { return; } // don't allow clicking in the channel header region
 
             double absoluteX = mousePosX - MousePositionOffsetX;
             double absoluteY = mousePosY - (MousePositionOffsetY - (Tracker.RowHeight * Tracker.FirstVisibleRow));
@@ -491,8 +504,8 @@ namespace sfTracker
         {
             string fileName = GetOpenFileDialog(title: "Select.sf2 file", filter: "SoundFont Files (*.sf2)|*.sf2");
             if (fileName == "") { return; }
-            string soundFontName = GetParsedFileName(fileName);
-            InitialiseTracker(soundFontName, Engine.Tracker.Patterns, ProgramConstants.DefaultBPM);
+            InitialiseTracker(fileName, Engine.Tracker.Patterns, vm.BPM);
+            UpdateTrackerSettings();
         }
 
         /// <summary>
@@ -568,6 +581,14 @@ namespace sfTracker
             if (e.Key >= Key.A && e.Key <= Key.Z) // prevent key presses moving focus in the preset select window
                 e.Handled = true;
         }
+        
+        /// <summary>
+        /// Method to move focus to the tracker grid after selecting a SoundFont preset.
+        /// </summary>
+        private void ListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            Dispatcher.BeginInvoke(new Action(() => { Tracker.Focus(); }), System.Windows.Threading.DispatcherPriority.Background);
+        }
 
         /// <summary>
         /// Method to handle adding a new pattern.
@@ -582,7 +603,27 @@ namespace sfTracker
                 )
             );
             FrameVerticalScrollBar.Value += FrameVerticalScrollBar.SmallChange;
-            InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, vm.BPM);
+            InitialiseTracker(SoundFontPath, Tracker.Patterns, vm.BPM);
+            UpdateTrackerSettings();
+        }
+
+        /// <summary>
+        /// Method to handle duplicating the current pattern.
+        /// </summary>
+        private void DuplicatePatternButton_Click(object sender, RoutedEventArgs e)
+        {
+            // create copy of pattern
+            Pattern pattern = JsonSerializer.Deserialize<Pattern>(
+                JsonSerializer.Serialize(Tracker.Patterns[Tracker.CurrentPatternIndex])
+            );
+
+            Tracker.Patterns.Insert(
+                Tracker.CurrentPatternIndex + 1,
+                pattern
+            );
+            FrameVerticalScrollBar.Value += FrameVerticalScrollBar.SmallChange;
+            InitialiseTracker(SoundFontPath, Tracker.Patterns, vm.BPM); //TODO: fix bpm not being updated when loading a file
+            UpdateTrackerSettings();
         }
 
         /// <summary>
@@ -595,7 +636,8 @@ namespace sfTracker
                 FrameVerticalScrollBar.Value -= FrameVerticalScrollBar.SmallChange;
             
             Tracker.Patterns.RemoveAt(Tracker.CurrentPatternIndex); // TODO: consider making it more clear that current pattern is being deleted
-            InitialiseTracker(SelectedSoundFont.Text, (List<Pattern>)Tracker.Patterns, ProgramConstants.DefaultBPM);
+            InitialiseTracker(SoundFontPath, Tracker.Patterns, vm.BPM);
+            UpdateTrackerSettings();
         }
 
         /// <summary>
@@ -686,7 +728,7 @@ namespace sfTracker
                 Tracker.GlobalCurrentRow = 0; // reset to start to avoid indexing issues
                 Tracker.RowsPerPattern = vm.RowCount;
                 Tracker.ResetToFirstRow();
-                InitialiseTracker(SelectedSoundFont.Text, Engine.Tracker.Patterns, vm.BPM); // need to re-initialise for this change
+                InitialiseTracker(SoundFontPath, Engine.Tracker.Patterns, vm.BPM); // need to re-initialise for this change
             }
             
             if (vm.RowHighlight != Tracker.RowHighlight)
@@ -712,6 +754,7 @@ namespace sfTracker
         private void HandleButtonState(bool isEnabled)
         {
             AddPatternButton.IsEnabled = isEnabled;
+            DuplicatePatternButton.IsEnabled = isEnabled;
             RemovePatternButton.IsEnabled = Tracker.Patterns.Count > 1 && isEnabled;
 
             BPMTextBox.IsReadOnly = !isEnabled;
@@ -793,7 +836,7 @@ namespace sfTracker
             string fileName = GetOpenFileDialog(title: "Select .sft file", filter: "sfTracker Files (*.sft)|*.sft");
             if (fileName == "") { return; }
 
-            LoadProject(GetParsedFileName(fileName));
+            LoadProject(fileName);
         }
 
         /// <summary>
@@ -806,8 +849,7 @@ namespace sfTracker
             {
                 string fileName = GetSaveFileDialog(title: "Save project", filter: "sfTracker Files (*.sft)|*.sft");
                 if (fileName == "") { return; }
-                filePath = GetParsedFileName(fileName);
-                ProjectTitle = filePath;
+                ProjectTitle = fileName;
                 vm.WindowTitle = filePath;
             }
 
@@ -828,7 +870,7 @@ namespace sfTracker
             ProjectFile project = new()
             {
                 ProjectName = filePath,
-                SoundFont = SelectedSoundFont.Text,
+                SoundFont = SoundFontPath,
                 BPM = vm.BPM,
                 Speed = vm.Speed,
                 RowCount = vm.RowCount,
@@ -939,13 +981,16 @@ namespace sfTracker
         {
             if (e.Key == Key.Space) { Tracker.IsEditing = !Tracker.IsEditing; } // change edit state with space bar
 
-            if (IsPlaying || Keyboard.FocusedElement is System.Windows.Controls.TextBox) { return; } // don't fire event if textbox is focused
+            if (
+                IsPlaying ||
+                Keyboard.FocusedElement is System.Windows.Controls.TextBox || // don't fire event if textbox is focused
+                Tracker.IsEditing && Tracker.CurrentField != TrackerField.Note // don't fire if editing while not in note field
+            ) { return; }
 
             MidiNoteValueMap? note = Tracker.GetMidiNote(e.Key);
             if (note == null || currentlyPlayingNote > 0) { return; } // don't allow key press if note already playing
 
             // start audio playback, then trigger the note
-            Engine.PlayAudio(isKeyPress: true);
             Engine.Tracker.TriggerNoteWithKeyboard(
                 channel:    0,
                 note:       (int)note - 12, // TODO: generalise
@@ -953,7 +998,7 @@ namespace sfTracker
                 instrument: vm.SelectedPreset.Instrument,
                 velocity:   ProgramConstants.MaxVolume,
                 trigger:    true
-            ); 
+            );
 
             currentlyPlayingNote = (int)note - 12; // store current note so it can be switched off
         }
@@ -975,7 +1020,6 @@ namespace sfTracker
                 velocity:   0
             );
             currentlyPlayingNote = -1;
-            Engine.StopAudio();
         }
     }
 }

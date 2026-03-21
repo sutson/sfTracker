@@ -264,6 +264,7 @@
                                     TickFrequency="1"
                                     IsSnapToTickEnabled="True"
                                     ValueChanged="FrameVerticalScrollBar_ValueChanged"
+                                    PreviewMouseDown="FrameVerticalScrollBar_PreviewMouseDown"
                                     Template="{StaticResource FrameVerticalSliderTemplate}"
                                 >
                                     <Slider.LayoutTransform>
@@ -291,17 +292,36 @@
                                 </Button>
                             </Grid>
                             <Grid Grid.Column="1">
-                                <Button
-                                    x:Name="AddPatternButton"
-                                    VerticalAlignment="Bottom"
-                                    Margin="5 0 10 10"
-                                    Padding="5"
-                                    FontWeight="DemiBold"
-                                    Background="#babae0"
-                                    Click="AddPatternButton_Click"
-                                >
-                                    Add Pattern
-                                </Button>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Grid.Column="0">
+                                    <Button
+                                        x:Name="AddPatternButton"
+                                        VerticalAlignment="Bottom"
+                                        Margin="5 0 10 10"
+                                        Padding="5"
+                                        FontWeight="DemiBold"
+                                        Background="#babae0"
+                                        Click="AddPatternButton_Click"
+                                    >
+                                        Add Pattern
+                                    </Button>
+                                </Grid>
+                                <Grid Grid.Column="1">
+                                    <Button
+                                        x:Name="DuplicatePatternButton"
+                                        VerticalAlignment="Bottom"
+                                        Margin="0 0 10 10"
+                                        Padding="5"
+                                        FontWeight="DemiBold"
+                                        Background="#babae0"
+                                        Click="DuplicatePatternButton_Click"
+                                    >
+                                        Duplicate Pattern
+                                    </Button>
+                                </Grid>
                             </Grid>
                         </Grid>
                     </Grid>
@@ -684,6 +704,7 @@
                             ItemsSource="{Binding Presets}"
                             SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
                             PreviewKeyDown="ListBox_PreviewKeyDown"
+                            SelectionChanged="ListBox_SelectionChanged"
                             Background="#141424"
                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
