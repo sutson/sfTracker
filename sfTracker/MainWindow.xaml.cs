@@ -983,7 +983,8 @@ namespace sfTracker
             if (
                 IsPlaying ||
                 Keyboard.FocusedElement is System.Windows.Controls.TextBox || // don't fire event if textbox is focused
-                Tracker.IsEditing && Tracker.CurrentField != TrackerField.Note // don't fire if editing while not in note field
+                Tracker.IsEditing && Tracker.CurrentField != TrackerField.Note || // don't fire if editing while not in note field
+                Keyboard.Modifiers == ModifierKeys.Control // don't fire during undo/redo operations
             ) { return; }
 
             MidiNoteValueMap? note = Tracker.GetMidiNote(e.Key);
