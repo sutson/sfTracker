@@ -2,7 +2,7 @@
 
 ![Example sfTracker Project](<sfTracker Example.png>)
 
-`sfTracker` is a music tracker designed with *[FamiTracker](http://famitracker.com/)* as its main inspiration, designed in C# using WPF and XAML for rendering visuals. It uses the [MeltySynth](https://github.com/sinshu/meltysynth) package to implement SoundFont functionality, and [NAudio](https://github.com/naudio/naudio) for streaming audio playback.
+`sfTracker` is a music tracker designed with *[FamiTracker](http://famitracker.com/)* as its main inspiration, created in C# using WPF and XAML for rendering visuals. It uses the [MeltySynth](https://github.com/sinshu/meltysynth) package to implement SoundFont functionality, and [NAudio](https://github.com/naudio/naudio) for streaming audio playback.
 
 ## Settings Section
 
