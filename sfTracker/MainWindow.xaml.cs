@@ -44,7 +44,7 @@ namespace sfTracker
         public int currentlyPlayingNote;
         private string ProjectTitle = "";
         private string SoundFontPath = "";
-
+        
         public MainWindow()
         {
             InitializeComponent();
@@ -119,6 +119,7 @@ namespace sfTracker
             Tracker.Engine = Engine;
             Tracker.ChannelCount = ProgramConstants.DefaultChannelCount;
             Tracker.Patterns = Engine.Tracker.Patterns;
+            Tracker.GetColumnDefinitions();
 
             //Tracker.RowWidth = ProgramConstants.DefaultChannelCount * Tracker.ColumnWidth;
             Tracker.RowsPerPattern = vm.RowCount;
@@ -135,6 +136,8 @@ namespace sfTracker
                 Tracker.FirstVisibleFrame = 0;
                 Tracker.LastVisibleFrame = Tracker.Patterns.Count;
             }
+
+            Tracker.InvalidateVisual();
         }
 
         /// <summary>
@@ -150,7 +153,6 @@ namespace sfTracker
 
         private void DisableEventListeners()
         {
-            CompositionTarget.Rendering -= (s, e) => Tracker.SetCurrentRow(Engine.Tracker.CurrentRow);
             Tracker.PlaybackStarted -= StartPlayback;
             Tracker.VerticalScrollbarValueChanged -= SetVerticalScrollbarValue;
             Tracker.HorizontalScrollbarValueChanged -= SetHorizontalScrollbarValue;
@@ -162,7 +164,6 @@ namespace sfTracker
 
         private void EnableEventListeners()
         {
-            CompositionTarget.Rendering += (s, e) => Tracker.SetCurrentRow(Engine.Tracker.CurrentRow);
             Tracker.PlaybackStarted += StartPlayback;
             Tracker.VerticalScrollbarValueChanged += SetVerticalScrollbarValue;
             Tracker.HorizontalScrollbarValueChanged += SetHorizontalScrollbarValue;
@@ -533,7 +534,7 @@ namespace sfTracker
             HandleChannelSettingsChange(absoluteX, absoluteY);
 
             // update GUI
-            InvalidateVisual();
+            Tracker.InvalidateVisual();
         }
 
         /// <summary>
@@ -557,9 +558,9 @@ namespace sfTracker
 
             // handle mute or unmute of channel
             if (channelToMute != -1 && vm.Columns[channelToMute].IsMuted)
-                ChannelSettings.HandleUnmute(channelToMute, vm, Engine, Tracker.ChannelStatuses);
+                ChannelSettings.HandleUnmute(channelToMute, vm, Engine);
             else
-                ChannelSettings.HandleMute(channelToMute, vm, Engine, Tracker.ChannelStatuses);
+                ChannelSettings.HandleMute(channelToMute, vm, Engine);
 
             // handle solo of channel
             int channelToSolo =
@@ -569,7 +570,7 @@ namespace sfTracker
                     Tracker.ChannelCount,
                     Tracker.ChannelButtonSize
                 );
-            ChannelSettings.HandleSolo(channelToSolo, vm, Engine, Tracker.ChannelStatuses, Tracker.ChannelCount);
+            ChannelSettings.HandleSolo(channelToSolo, vm, Engine, Tracker.ChannelCount);
         }
 
         /// <summary>
@@ -803,7 +804,7 @@ namespace sfTracker
             vm.ResetColumns();
 
             // reset to first row, clear project title and re-initialise tracker with defaults
-            Tracker.GlobalCurrentRow = 0;
+            Tracker.ResetToFirstRow();
             ProjectTitle = "";
             InitialiseTracker(
                 soundFont: ProgramConstants.DefaultSoundFont,
@@ -836,6 +837,7 @@ namespace sfTracker
             if (fileName == "") { return; }
 
             LoadProject(fileName);
+            Tracker.ResetToFirstRow();
         }
 
         /// <summary>
@@ -980,8 +982,15 @@ namespace sfTracker
         {
             if (e.Key == Key.Space) { Tracker.IsEditing = !Tracker.IsEditing; } // change edit state with space bar
 
+            if (IsPlaying) { return; }
+
+            if (e.Key == Key.E && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                Engine.ExportAudio("test.wav"); // TODO: save to specific location with specific name
+                return;
+            }
+
             if (
-                IsPlaying ||
                 Keyboard.FocusedElement is System.Windows.Controls.TextBox || // don't fire event if textbox is focused
                 Tracker.IsEditing && Tracker.CurrentField != TrackerField.Note || // don't fire if editing while not in note field
                 Keyboard.Modifiers == ModifierKeys.Control // don't fire during undo/redo operations

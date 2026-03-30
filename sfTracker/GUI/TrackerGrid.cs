@@ -43,6 +43,8 @@ public class TrackerGrid : FrameworkElement
     public int RowHighlight = 0;
     public List<Pattern> Patterns = [];
     public bool IsEditing = false;
+    public readonly Dictionary<int, ColumnDefinitions> ColumnDefinitions = [];
+    private readonly Dictionary<string, FormattedText> TextCache = [];
 
     // instrument data
     private int SelectedBank = -1;
@@ -130,7 +132,7 @@ public class TrackerGrid : FrameworkElement
                 if (y + TopMargin >= 0)
                 {
                     context.DrawText(
-                        RenderText(
+                        GetCachedText(
                             GetRowString(absoluteRow),
                             (i == CurrentPatternIndex)
                                 ? (row % RowHighlight == 0 ? Brushes.ActivePatternBrush : Brushes.LowOpacityTextBrush)
@@ -146,8 +148,7 @@ public class TrackerGrid : FrameworkElement
                         continue;
 
                     // get starting x-coordinates of each field in the column
-                    double startChannelX = channel * ColumnWidth;
-                    ColumnDefinitions cols = new ColumnDefinitions(startChannelX, NoteWidth, DigitWidth, ChannelInnerPadding);
+                    ColumnDefinitions cols = ColumnDefinitions[channel];
                     
                     var cell = Patterns[i].Rows[row].Cells[channel];
 
@@ -165,27 +166,27 @@ public class TrackerGrid : FrameworkElement
 
                     // render each field's text content (note, instrument, volume, effects)
                     context.DrawText(
-                        RenderText(GetNoteTextToRender(cell.Note), brush), // TODO: make the --- a less bright, while keeping normal text same
+                        GetCachedText(GetNoteTextToRender(cell.Note), brush), // TODO: make the --- a less bright, while keeping normal text same
                         new Point(cols.NoteX, y)
                     );
 
                     context.DrawText(
-                        RenderText(GetInstrumentTextToRender(cell.InstrumentID), brush),
+                        GetCachedText(GetInstrumentTextToRender(cell.InstrumentID), brush),
                         new Point(cols.InstrFirstX, y)
                     );
 
                     context.DrawText(
-                        RenderText(GetVolumeTextToRender(cell.Velocity), brush),
+                        GetCachedText(GetVolumeTextToRender(cell.Velocity), brush),
                         new Point(cols.VolFirstX, y)
                     );
 
                     context.DrawText(
-                        RenderText(GetEffectTypeTextToRender(cell.Panning), brush),
+                        GetCachedText(GetEffectTypeTextToRender(cell.Panning), brush),
                         new Point(cols.EffectTypeX, y)
                     );
 
                     context.DrawText(
-                        RenderText(GetEffectTextToRender(cell.Panning.Value), brush),
+                        GetCachedText(GetEffectTextToRender(cell.Panning.Value), brush),
                         new Point(cols.EffectFirstX, y)
                     );
 
@@ -193,7 +194,7 @@ public class TrackerGrid : FrameworkElement
                     if (absoluteRow == GlobalCurrentRow && channel == CurrentChannel)
                     {
                         HighlightCurrentCell(
-                            context, startChannelX, cols.InstrFirstX, cols.InstrSecondX, cols.InstrThirdX,
+                            context, channel * ColumnWidth, cols.InstrFirstX, cols.InstrSecondX, cols.InstrThirdX,
                             cols.VolFirstX, cols.VolSecondX, cols.EffectTypeX, cols.EffectFirstX, cols.EffectSecondX, y
                         );
                     }
@@ -333,7 +334,7 @@ public class TrackerGrid : FrameworkElement
         double channelTextStartX = headerStartX + padding / 2;
 
         // draw "Channel X" text (note ToString("X") converts numbers to hexadecimal so each is the same width)
-        FormattedText channelText = RenderText($"Channel {(channel + 1).ToString("X")}", Brushes.Black, 13, FontWeights.DemiBold);
+        FormattedText channelText = GetCachedText($"Channel {(channel + 1).ToString("X")}", Brushes.Black, 13, FontWeights.DemiBold);
         context.DrawText(
             channelText,
             new Point(
@@ -365,10 +366,14 @@ public class TrackerGrid : FrameworkElement
     {
         // create rectangle and text render
         Rect rect = new Rect(startX, startY, size, size);
-        FormattedText text = RenderText(value, Brushes.Black, 13, FontWeights.DemiBold, "Segoe UI");
-
-        if (isSelected) // highlight text in red if it is clicked
-            text.SetForegroundBrush(Brushes.Red);
+        FormattedText text =
+            GetCachedText(
+                value,
+                isSelected ? Brushes.Red : Brushes.Black, // highlight text in red if it is clicked
+                13,
+                FontWeights.DemiBold,
+                "Segoe UI"
+            );
 
         // draw rectangle and text
         context.DrawRectangle(
@@ -453,6 +458,22 @@ public class TrackerGrid : FrameworkElement
     }
 
     /// <summary>
+    /// Method to retrieve cached text to prevent re-drawing the same text element multiple times.
+    /// </summary>
+    FormattedText GetCachedText(string text, SolidColorBrush brush, int size = 14, FontWeight weight = default, string font = "Consolas")
+    {
+        string key = text + brush.ToString(); // create dictionary key
+
+        if (!TextCache.TryGetValue(key, out var formattedText)) // if text not cached already, add it to dictionary
+        {
+            formattedText = RenderText(text, brush, size, weight, font);
+            TextCache[key] = formattedText;
+        }
+
+        return formattedText;
+    }
+
+    /// <summary>
     /// Method to determine if the current pattern should be rendered on the screen.
     /// This is checked before looping through rows to prevent extraneous calculations
     /// </summary>
@@ -507,6 +528,15 @@ public class TrackerGrid : FrameworkElement
     private string GetRowString(int absoluteRow)
     {
         return (absoluteRow % RowsPerPattern).ToString().PadLeft(3, '0');
+    }
+
+    public void GetColumnDefinitions()
+    {
+        for (int channel = 0; channel < ChannelCount; channel++)
+        {
+            double startChannelX = channel * ColumnWidth;
+            ColumnDefinitions[channel] = new ColumnDefinitions(startChannelX, NoteWidth, DigitWidth, ChannelInnerPadding);
+        }
     }
 
     /// <summary>
@@ -1055,11 +1085,11 @@ public class TrackerGrid : FrameworkElement
         FrameVerticalScrollbarValueChanged?.Invoke(value);
     }
 
-    public void SetCurrentRow(int row)
-    {
-        CurrentRowPosition = row;
-        InvalidateVisual();
-    }
+    //public void SetCurrentRow(int row)
+    //{
+    //    CurrentRowPosition = row;
+    //    InvalidateVisual();
+    //}
 
     public void AdvanceRow(int cur, int next)
     {
