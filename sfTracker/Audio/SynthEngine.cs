@@ -52,10 +52,10 @@ namespace sfTracker.Audio
         /// <summary>
         /// Method to begin audio playback via WaveOutEvent.
         /// </summary>
-        public void PlayAudio(bool isKeyPress = false)
+        public void PlayAudio()
         {
             // isKeyPress determines if the tracker logic should start, or just the audio engine
-            waveProvider.Start(isKeyPress);
+            waveProvider.Start();
             isPlayingAudio = true;
         }
 
@@ -78,6 +78,7 @@ namespace sfTracker.Audio
             tracker.CurrentPattern = currentPattern; // reset pattern
             tracker.CurrentTick = 0;  // reset tick counter
             tracker.tickSampleCounter = 0;  // reset sample counter
+            tracker.SongHasFinished = false; // reset song state
 
             synthesizer.Reset(); // reset MeltySynth Synthesizer
             tracker.ResetChannelVolumes(); // reset channel volumes
@@ -107,6 +108,19 @@ namespace sfTracker.Audio
             if (voice == null) { return; }
             tracker.NoteOff(channel, voice.Note); // trigger NoteOff() for each active voice
             tracker.ActiveVoices[channel] = null;
+        }
+
+        /// <summary>
+        /// Method to export the current song as an audio file (.wav format).
+        /// </summary>
+        public void ExportAudio(string fileName)
+        {
+            // the tracker must be reset to the beginning before rendering the song.
+            // the wave provider output is stopped to allow the song to export, then restarted
+            ResetTracker(0);
+            output.Stop();
+            waveProvider.ExportWav(fileName);
+            output.Play();
         }
 
         public void Dispose()

@@ -17,9 +17,8 @@ namespace sfTracker.Audio
 
         private float[] floatBuffer = [];
 
-        public void Start(bool isKeyPress = false)
+        public void Start()
         {
-            if (isKeyPress) { return; } // don't start tracker logic if just getting key press feedback
             isPlaying = true;
         }
 
@@ -37,7 +36,7 @@ namespace sfTracker.Audio
             // this must be converted to float samples so
             // divide by sizeof(float) to convert bytes -> float samples needed
             int samplesRequired = count / sizeof(float);
-            
+
             // divide by 2 to account for stereo (2 float samples needed for L and R channels)
             int framesRequired = samplesRequired / 2;
 
@@ -47,13 +46,50 @@ namespace sfTracker.Audio
             if (floatBuffer.Length < samplesRequired)
                 floatBuffer = new float[samplesRequired];
 
+            // render frames, then copy float buffer data back into byte buffer
+            RenderAudio(framesRequired);
+            Buffer.BlockCopy(floatBuffer, 0, buffer, offset, count);
+
+            return count;
+        }
+
+        /// <summary>
+        /// Method to handle exporting audio to a .wav file.
+        /// </summary>
+        public void ExportWav(string path)
+        {
+            var waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channels: 2); // instantiate PCM
+
+            using var writer = new WaveFileWriter(path, waveFormat); // initialise the writer
+            
+            // create the float buffer
+            const int bufferFrames = 1024;
+            float[] floatBuffer = new float[bufferFrames * 2];
+
+            synthesizer.Reset(); // reset the synthesiser before starting the render
+
+            while (true)
+            {
+                RenderAudio(bufferFrames, writer: writer, isExport: true); // render audio as export
+
+                if (tracker.SongHasFinished)
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Method to handle audio rendering.
+        /// </summary>
+        private void RenderAudio(int framesRequired, WaveFileWriter writer = null, bool isExport = false)
+        {
             int framesDone = 0; // track how many frames have been generated
+
             // keep rendering audio until all the frames are done
             while (framesDone < framesRequired)
             {
                 int framesThisBlock;
 
-                if (isPlaying)
+                if (isPlaying || isExport)
                 {
                     double framesUntilNextTick = tracker.GetFramesUntilNextTick(); // calculate frames until next tracker "tick"
 
@@ -77,15 +113,15 @@ namespace sfTracker.Audio
                 // (framesThisBlock * 2) is the length of the data being written to floatBuffer this block
                 synthesizer.RenderInterleaved(floatBuffer.AsSpan(framesDone * 2, framesThisBlock * 2));
 
-                if (isPlaying)
+                if (isPlaying || isExport)
                     tracker.Advance(framesThisBlock); // advance the tracker by the number of frames rendered
 
                 framesDone += framesThisBlock; // update count for number of frames completed
             }
 
-            Buffer.BlockCopy(floatBuffer, 0, buffer, offset, count); // copy float buffer data back into byte buffer
-            
-            return count;
+            // handle audio export file writing
+            if (isExport)
+                writer.WriteSamples(floatBuffer, 0, framesDone * 2);
         }
     }
 }

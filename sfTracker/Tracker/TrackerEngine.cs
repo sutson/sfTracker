@@ -27,6 +27,7 @@ namespace sfTracker.Tracker
         public int CurrentPattern { get; set; }
         public int CurrentTick { get; set; }
         public int EarlyStoppingIndex { get; set; } // variable is set when the row count is changed in the GUI, moves to next pattern when reached
+        public bool SongHasFinished { get; set; }
 
         public List<Pattern> Patterns { get; set; } 
         public Voice[] ActiveVoices { get; set; }
