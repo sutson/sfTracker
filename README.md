@@ -41,7 +41,7 @@ This panel shows the song setup, as well as options for interacting with files/p
 ### SoundFont Manager
 Shows all patches available in the currently loaded SoundFont. `MeltySynth` requires a file to be passed in to start the synthesiser, so the default SoundFont is `Kirby's_Dream_Land_3.sf2`, obtained from [William Kage's website](https://www.williamkage.com/snes_soundfonts/#kdl3_soundfont).
 
-Each patch is mapped to digits starting from 0, with 0 being selected by default. Clicking a patch sets it as the selected SoundFont, resulting in any notes placed being mapped to that instrument.
+Each patch is mapped to digits starting from 0, with 0 being selected by default. Clicking a patch sets it as the selected instrument, resulting in any notes placed being mapped to that instrument.
 
 Different SoundFonts can be loaded by clicking the `Import .sf2 File` button in the top-right. [Polyphone](https://www.polyphone.io/) can be used to edit and combine `.sf2` files, if desired.
 
