@@ -45,7 +45,7 @@ Each patch is mapped to digits starting from 0, with 0 being selected by default
 
 Different SoundFonts can be loaded by clicking the `Import .sf2 File` button in the top-right. [Polyphone](https://www.polyphone.io/) can be used to edit and combine `.sf2` files, if desired.
 
-## Settings Section
+## Tracker Section
 
 ![sfTracker Grid](Grid.png)
 
