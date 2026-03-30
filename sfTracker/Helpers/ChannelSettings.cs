@@ -1,8 +1,6 @@
 ﻿using sfTracker.Audio;
 using sfTracker.GUI;
-using sfTracker.Tracker;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace sfTracker.Helpers
@@ -28,23 +26,21 @@ namespace sfTracker.Helpers
             return -1;
         }
 
-        public static void HandleMute(int channel, MainViewModel vm, SynthEngine engine, ObservableCollection<TrackerColumn> channelStatuses)
+        public static void HandleMute(int channel, MainViewModel vm, SynthEngine engine)
         {
             // do nothing if invalid channel or if channel already muted
             if (channel == -1 || vm.Columns[channel].IsMuted) { return; }
 
-            UpdateMuteStatues(channel, isMuted: true, vm, engine, channelStatuses); // update mute statuses for channel
+            UpdateMuteStatues(channel, isMuted: true, vm, engine); // update mute statuses for channel
             engine.StopNoteInChannel(channel); // kill currently playing notes in channel
         }
 
-        public static void HandleUnmute(
-            int channel, MainViewModel vm, SynthEngine engine, ObservableCollection<TrackerColumn> channelStatuses
-        )
+        public static void HandleUnmute(int channel, MainViewModel vm, SynthEngine engine)
         {
             // do nothing if invalid channel or if channel not already muted
             if (channel == -1 || !vm.Columns[channel].IsMuted) { return; }
 
-            UpdateMuteStatues(channel, isMuted: false, vm, engine, channelStatuses); // update mute statuses for channel
+            UpdateMuteStatues(channel, isMuted: false, vm, engine); // update mute statuses for channel
 
             // if unmuting a channel which isn't already solo
             // remove solo from all channels
@@ -52,18 +48,13 @@ namespace sfTracker.Helpers
                 foreach (var column in vm.Columns) { column.IsSolo = false; }
         }
 
-        public static void UpdateMuteStatues(
-            int channel, bool isMuted, MainViewModel vm, SynthEngine engine, ObservableCollection<TrackerColumn> channelStatuses
-        )
+        public static void UpdateMuteStatues(int channel, bool isMuted, MainViewModel vm, SynthEngine engine)
         {
             vm.Columns[channel].IsMuted = isMuted; // update mute status
             engine.Tracker.ChannelMuteStatuses[channel] = isMuted; // update channel statuses (used for preventing playback if muted)
-            channelStatuses = vm.Columns; // update channel statuses (used for GUI M/S button styling)
         }
 
-        public static void HandleSolo(
-            int channel, MainViewModel vm, SynthEngine engine, ObservableCollection<TrackerColumn> channelStatuses, int channelCount
-        )
+        public static void HandleSolo(int channel, MainViewModel vm, SynthEngine engine, int channelCount)
         {
             // if channel not valid, do nothing
             if (channel == -1) { return; }
@@ -75,17 +66,17 @@ namespace sfTracker.Helpers
             {
                 vm.Columns[channel].IsSolo = false; // remove solo setting
                 for (int ch = 0; ch < channelCount; ch++) // for each channel, remove mute
-                    HandleUnmute(ch, vm, engine, channelStatuses);
+                    HandleUnmute(ch, vm, engine);
             }
             else // if channel not solo
             {
                 vm.Columns[channel].IsSolo = true; // solo it
                 if (vm.Columns[channel].IsMuted) // if the channel is currently muted, unmute it
-                    HandleUnmute(channel, vm, engine, channelStatuses);
+                    HandleUnmute(channel, vm, engine);
                 foreach (int ch in channelsToMute) // for all other channels, mute them if they aren't already and remove solo value
                 {
                     vm.Columns[ch].IsSolo = false;
-                    HandleMute(ch, vm, engine, channelStatuses);
+                    HandleMute(ch, vm, engine);
                 }
             }
         }
