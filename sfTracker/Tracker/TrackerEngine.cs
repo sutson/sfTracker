@@ -182,9 +182,14 @@ namespace sfTracker.Tracker
 
                 // reset to first pattern if at end of Patterns array, otherwise advance to next
                 if (CurrentPattern == Patterns.Count - 1)
+                {
                     CurrentPattern = 0;
+                    SongHasFinished = true;
+                }
                 else
+                {
                     CurrentPattern++;
+                }
             }
         }
 
