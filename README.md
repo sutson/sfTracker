@@ -51,6 +51,8 @@ Different SoundFonts can be loaded by clicking the `Import .sf2 File` button in 
 
 The above image shows the bottom portion of the sfTracker window. This features the main tracker grid where notes are placed. There are **12** available channels, however the 10th channel (Channel A) is **reserved for percussion patches only** due to MIDI conventions.
 
+To start or stop playback, press the `ENTER` key.
+
 ### Channel Headers
 
 ![Channel Header](<Channel Header.png>)
