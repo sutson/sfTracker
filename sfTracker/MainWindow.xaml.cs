@@ -42,7 +42,7 @@ namespace sfTracker
         public bool IsPlaying = false;
         public double currentRowPosition;
         public int currentlyPlayingNote;
-        private string ProjectTitle = "";
+        private string ProjectPath = "";
         private string SoundFontPath = "";
         
         public MainWindow()
@@ -805,7 +805,7 @@ namespace sfTracker
 
             // reset to first row, clear project title and re-initialise tracker with defaults
             Tracker.ResetToFirstRow();
-            ProjectTitle = "";
+            ProjectPath = "";
             InitialiseTracker(
                 soundFont: ProgramConstants.DefaultSoundFont,
                 patterns: [
@@ -822,7 +822,7 @@ namespace sfTracker
         {
             System.Windows.Controls.Button button = (System.Windows.Controls.Button)sender;
             string tag = button.Tag.ToString();
-            SaveProject(ProjectTitle, isNewProject: tag == "Save_As"); // pass in tag to use different save logic
+            SaveProject(isNewProject: tag == "Save_As" || ProjectPath == ""); // pass in tag and path to use different save logic
         }
 
         /// <summary>
@@ -843,15 +843,15 @@ namespace sfTracker
         /// <summary>
         /// Method to save existing and new projects.
         /// </summary>
-        private void SaveProject(string filePath, bool isNewProject = false)
+        private void SaveProject(bool isNewProject = false)
         {
             // for new projects, open a save dialog and update project title
-            if (isNewProject || filePath == "")
+            if (isNewProject)
             {
                 string fileName = GetSaveFileDialog(title: "Save project", filter: "sfTracker Files (*.sft)|*.sft");
                 if (fileName == "") { return; }
-                ProjectTitle = fileName;
-                vm.WindowTitle = filePath;
+                ProjectPath = fileName;
+                vm.WindowTitle = GetParsedFileName(fileName);
             }
 
             // resize patterns to only save up to the number of rows displayed in the project.
@@ -870,7 +870,7 @@ namespace sfTracker
             // create project skeleton for saving
             ProjectFile project = new()
             {
-                ProjectName = filePath,
+                ProjectName = ProjectPath,
                 SoundFont = SoundFontPath,
                 BPM = vm.BPM,
                 Speed = vm.Speed,
@@ -882,7 +882,7 @@ namespace sfTracker
             // save file using Json serialiser
             JsonSerializerOptions jsonOptions = new() { WriteIndented = true };
             string json = JsonSerializer.Serialize(project, jsonOptions);
-            File.WriteAllText(filePath, json);
+            File.WriteAllText(ProjectPath, json);
         }
 
         /// <summary>
@@ -915,7 +915,7 @@ namespace sfTracker
             }
 
             // update project information and settings, then re-initialise tracker
-            ProjectTitle = projectName;
+            ProjectPath = projectName;
             InitialiseTracker(project.SoundFont, resizedPatterns, project.BPM);
             UpdateTrackerSettings();
         }
