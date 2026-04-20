@@ -1,6 +1,4 @@
-﻿using sfTracker.Audio;
-using sfTracker.Playback;
-using System.Windows;
+﻿using System.Windows;
 
 namespace MyTracker
 {

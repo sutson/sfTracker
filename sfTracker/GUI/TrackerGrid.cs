@@ -138,7 +138,7 @@ public class TrackerGrid : FrameworkElement
                                 ? (row % RowHighlight == 0 ? Brushes.ActivePatternBrush : Brushes.LowOpacityTextBrush)
                                 : (row % RowHighlight == 0 ? Brushes.InactiveTextBrush : Brushes.LowOpacityInactiveTextBrush)
                         ),
-                        new Point(-32, y)
+                        new Point(-32, y) // TODO: make generic
                     );
                 }
 
@@ -1040,7 +1040,8 @@ public class TrackerGrid : FrameworkElement
         return int.Parse(new string(chars));
     }
 
-    // event handling
+    // ====== EVENT HANDLING ====== //
+
     public event Action<int> PlaybackStarted;
     public event Action InstrumentSelected;
     public event Action BankSelected;
@@ -1084,12 +1085,6 @@ public class TrackerGrid : FrameworkElement
     {
         FrameVerticalScrollbarValueChanged?.Invoke(value);
     }
-
-    //public void SetCurrentRow(int row)
-    //{
-    //    CurrentRowPosition = row;
-    //    InvalidateVisual();
-    //}
 
     public void AdvanceRow(int cur, int next)
     {
@@ -1249,7 +1244,7 @@ public class TrackerGrid : FrameworkElement
         return (key >= Key.D0 && key <= Key.D9) || (key >= Key.NumPad0 && key <= Key.NumPad9); // numpad digits
     }
 
-    public MidiNoteValueMap? GetMidiNote(Key key)
+    public static MidiNoteValueMap? GetMidiNote(Key key)
     {
         if (KeyboardToMidiNote.Map.TryGetValue(key, out var note))
             return note;

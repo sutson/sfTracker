@@ -159,6 +159,9 @@ namespace sfTracker.GUI
             }
         }
 
+        /// <summary>
+        /// Method to clamp a value, ensuring it does need exceed the min/max boundaries.
+        /// </summary>
         private static int GetClampedValue(int value, int minValue, int maxValue)
         {
             return Math.Clamp(value, minValue, maxValue);

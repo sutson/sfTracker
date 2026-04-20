@@ -848,7 +848,7 @@ namespace sfTracker
             // for new projects, open a save dialog and update project title
             if (isNewProject)
             {
-                string fileName = GetSaveFileDialog(title: "Save project", filter: "sfTracker Files (*.sft)|*.sft");
+                string fileName = GetSaveFileDialog(title: "Save sfTracker Project", filter: "sfTracker Files (*.sft)|*.sft");
                 if (fileName == "") { return; }
                 ProjectPath = fileName;
                 vm.WindowTitle = GetParsedFileName(fileName);
@@ -984,9 +984,11 @@ namespace sfTracker
 
             if (IsPlaying) { return; }
 
+            // TODO: make this a button within the actual tracker
             if (e.Key == Key.E && Keyboard.Modifiers == ModifierKeys.Control)
             {
-                Engine.ExportAudio("test.wav"); // TODO: save to specific location with specific name
+                string fileName = GetSaveFileDialog("Save WAV File", "WAV Files (*.wav)|*.wav");
+                if (fileName != "") { Engine.ExportAudio(fileName); }
                 return;
             }
 
@@ -996,7 +998,7 @@ namespace sfTracker
                 Keyboard.Modifiers == ModifierKeys.Control // don't fire during undo/redo operations
             ) { return; }
 
-            MidiNoteValueMap? note = Tracker.GetMidiNote(e.Key);
+            MidiNoteValueMap? note = TrackerGrid.GetMidiNote(e.Key);
             if (note == null || currentlyPlayingNote > 0) { return; } // don't allow key press if note already playing
 
             // start audio playback, then trigger the note

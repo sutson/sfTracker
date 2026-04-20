@@ -22,7 +22,6 @@ namespace sfTracker.Audio
         {
             // initialise SoundFont handler, tracker and WaveProvider
             synthesizer = new Synthesizer(new SoundFont(soundFontPath), sampleRate);
-            //synthesizer.MasterVolume = 1.5f; // TODO: implement master volume slider or something so the volume can be louder
             tracker = new TrackerEngine(synthesizer, sampleRate);
             waveProvider = new MeltySynthWaveProvider(synthesizer, tracker, sampleRate);
 
