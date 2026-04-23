@@ -5,34 +5,9 @@
     Title="{Binding WindowTitle}"
     WindowState="Maximized"
     Background="#1f1e33">
-    <!-- COLOURS: dark bg = #141424
-                  light header = #353554
-    -->
-    <!-- https://github.com/angelsix/fasetto-word/blob/develop/Source/Fasetto.Word/Styles/Scroll.xaml -->
+    <!-- COLOURS: dark bg = #141424; light header = #353554; -->
+    
     <Window.Resources>
-        <!-- templates for vertical line rendering (redundant) -->
-        <Style x:Key="VerticalLineTop" TargetType="Line">
-            <Setter Property="Stroke" Value="FloralWhite"/>
-            <Setter Property="StrokeThickness" Value="1"/>
-            <Setter Property="Grid.Row" Value="1"/>
-            <Setter Property="Y1" Value="11"/>
-            <Setter Property="Y2" Value="20"/>
-        </Style>
-        <Style x:Key="VerticalLineMiddle" TargetType="Line">
-            <Setter Property="Stroke" Value="FloralWhite"/>
-            <Setter Property="StrokeThickness" Value="1"/>
-            <Setter Property="Grid.Row" Value="1"/>
-            <Setter Property="Y1" Value="125"/>
-            <Setter Property="Y2" Value="1000"/>
-        </Style>
-        <Style x:Key="VerticalLineBottom" TargetType="Line">
-            <Setter Property="Stroke" Value="FloralWhite"/>
-            <Setter Property="StrokeThickness" Value="1"/>
-            <Setter Property="Grid.Row" Value="1"/>
-            <Setter Property="Y1" Value="0"/>
-            <Setter Property="Y2" Value="1000"/>
-        </Style>
-
         <!-- template for horizontal slider (scroll) -->
         <ControlTemplate x:Key="HorizontalSliderTemplate" TargetType="Slider">
             <Track x:Name="PART_Track" IsDirectionReversed="False">
@@ -169,7 +144,7 @@
                 </Track>
             </ControlTemplate>
 
-        <!-- template for vertical slider (frame) -->
+        <!-- template for vertical slider (frame/pattern panel) -->
         <ControlTemplate x:Key="FrameVerticalSliderTemplate" TargetType="Slider">
             <Track x:Name="PART_Track" IsDirectionReversed="False">
                 <Track.DecreaseRepeatButton>
@@ -193,14 +168,10 @@
 
     <Grid Panel.ZIndex="0" MouseDown="Window_MouseDown">
         <Grid.RowDefinitions>
-            <RowDefinition Height="250" />
-            <!-- section for controls + instruments -->
-            <RowDefinition Height="1" />
-            <!-- section for above tracker -->
-            <RowDefinition Height="*" />
-            <!-- section for tracker + scrollbar -->
-            <RowDefinition Height="30" />
-            <!-- section for tracker + scrollbar -->
+            <RowDefinition Height="250" /> <!-- section for controls + instruments -->
+            <RowDefinition Height="1" />   <!-- section for separating controls from tracker -->
+            <RowDefinition Height="*" />   <!-- section for tracker + vertical scrollbar -->
+            <RowDefinition Height="30" />  <!-- section for horizontal scrollbar -->
         </Grid.RowDefinitions>
 
         <!-- container for controls and preset selection -->
@@ -329,7 +300,7 @@
             </Border>
 
             <Border Grid.Column="1" BorderThickness="1" BorderBrush="FloralWhite" Margin="10 5 5 10">
-                <!-- container for song settings (bpm, speed, row count?, highlight cell number etc.) -->
+                <!-- container for song settings (bpm, speed, etc.) -->
                 <Grid Background="#141424" HorizontalAlignment="Stretch">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="40" />
@@ -641,7 +612,6 @@
                 </Grid>
             </Border>
 
-            <!-- MARGIN: LEFT, TOP, RIGHT, BOTTOM -->
             <Border Grid.Column="3" BorderThickness="1" BorderBrush="FloralWhite" Margin="5 5 10 10">
                 <!-- container for preset selection -->
                 <Grid Background="Transparent" HorizontalAlignment="Stretch">
@@ -788,10 +758,8 @@
         <!-- container for tracker grid and vertical slider -->
         <Grid Background="Transparent" MouseLeftButtonDown="Tracker_MouseLeftButtonDown" PreviewMouseWheel="Tracker_PreviewMouseWheel" Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <!-- tracker part -->
-                <ColumnDefinition Width="Auto" />
-                <!-- scroll bar part -->
+                <ColumnDefinition Width="*" />     <!-- tracker part -->
+                <ColumnDefinition Width="Auto" />  <!-- scroll bar part -->
             </Grid.ColumnDefinitions>
 
             <!-- TrackerGrid aligned left -->
